@@ -98,6 +98,36 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
     return data;
   }
 
+  async function compactBrandImage(value) {
+    if (typeof value !== "string" || !value.startsWith("data:image/") || value.length <= 70_000) return value;
+    try {
+      const image = await new Promise((resolve, reject) => {
+        const item = new Image();
+        item.onload = () => resolve(item);
+        item.onerror = reject;
+        item.src = value;
+      });
+      const scale = Math.min(1, 96 / Math.max(image.width, image.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+      const compact = canvas.toDataURL("image/webp", .65);
+      return compact.length < value.length ? compact : value;
+    } catch {
+      return value;
+    }
+  }
+
+  async function snapshotForSync() {
+    const current = getCollection();
+    const brandImage = await compactBrandImage(current.brandImage);
+    if (brandImage !== current.brandImage && setCollection({ brandImage })) {
+      return snapshot();
+    }
+    return JSON.stringify(current);
+  }
+
   function formatTime(time) {
     return time ? new Date(time).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
   }
@@ -154,7 +184,7 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
   }
 
   async function send(revision) {
-    const sent = snapshot();
+    const sent = await snapshotForSync();
     const response = await request("PUT", { revision, ...JSON.parse(sent) });
     remote = response.result;
     if (response.conflict) {
