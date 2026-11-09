@@ -226,7 +226,11 @@ function moduleIconMarkup(module) {
   if (/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(value) && value.length <= 16_000) {
     return `<img class="module-icon module-icon-image" src="${value}" alt="" />`;
   }
-  if (value && value.length <= 12) {
+  // Built-in line icons are stored as `icon:<name>` and can be longer than
+  // the short text/emoji form. Keep the same 64-character bound as the
+  // server validator so a selected icon renders instead of falling back to
+  // the default module icon.
+  if (value && value.length <= 64) {
     if (value.startsWith("icon:") && /^[a-z-]+$/.test(value.slice(5))) return icon(value.slice(5), "ui-icon module-icon");
     return `<span class="module-icon module-icon-text" aria-hidden="true">${escapeHtml(value)}</span>`;
   }
