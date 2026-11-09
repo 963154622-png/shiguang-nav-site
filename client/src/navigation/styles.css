@@ -112,6 +112,9 @@ body[data-layout="3"] { --columns: 3; }
 body[data-layout="4"] { --columns: 4; }
 .module-card { min-width: 0; padding: 12px clamp(12px, 1.3vw, 22px) 13px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--glass); box-shadow: var(--shadow); backdrop-filter: blur(26px); -webkit-backdrop-filter: blur(26px); }
 .module-card.drag-target { border-style: dashed; border-color: var(--subtle); background: var(--glass-strong); }
+.module-card.dragging-module { opacity: .48; cursor: grabbing; }
+.module-card.drop-before { border-top: 2px solid var(--primary); }
+.module-card.drop-after { border-bottom: 2px solid var(--primary); }
 .module-header { min-height: 28px; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
 .module-title-wrap { min-width: 0; display: flex; align-items: center; gap: 9px; }
 .module-icon { width: 19px; height: 19px; color: var(--muted); }
@@ -119,6 +122,10 @@ body[data-layout="4"] { --columns: 4; }
 .module-icon-text { display: grid; place-items: center; flex: 0 0 auto; width: auto; min-width: 19px; font-size: 14px; }
 .module-icon-field { display: flex; align-items: center; gap: 10px; }
 .module-icon-preview { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 auto; border: 1px solid var(--line); border-radius: 11px; background: var(--glass-soft); }
+.module-icon-choices { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 7px; margin: 10px 0 12px; }
+.module-icon-choice { min-height: 36px; display: grid; place-items: center; padding: 5px; border: 1px solid var(--line-soft); border-radius: 10px; color: var(--muted); background: var(--glass-soft); font-size: 16px; }
+.module-icon-choice:hover,.module-icon-choice.active { color: var(--primary); border-color: var(--primary); background: var(--primary-soft); }
+.module-icon-choice .ui-icon { width: 18px; height: 18px; }
 .module-title { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; font-size: 16px; font-weight: 620; }
 .site-count { padding: 2px 7px; border-radius: 99px; color: var(--muted); background: var(--primary-soft); font-size: 11px; font-weight: 560; }
 .more-button { width: 29px; height: 29px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 9px; color: var(--subtle); background: transparent; }

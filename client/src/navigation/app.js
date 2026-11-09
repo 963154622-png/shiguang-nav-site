@@ -95,6 +95,10 @@ const defaultData = {
   }))
 };
 const recommendedSites = new Map(defaultData.modules.flatMap(module => module.sites.map(site => [domainOf(site.url), site])));
+const moduleIconOptions = [
+  ["daily", "工具"], ["learn", "学习"], ["design", "设计"], ["office", "办公"], ["dev", "开发"], ["life", "生活"],
+  ["✦", "星光"], ["⌘", "快捷"], ["⚡", "效率"], ["◉", "收藏"], ["☁", "云端"], ["♡", "灵感"]
+];
 
 const clone = value => JSON.parse(JSON.stringify(value));
 const uid = prefix => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -110,6 +114,7 @@ let selectedEngine = localStorage.getItem(ENGINE_KEY) || "google";
 let activeSuggestion = -1;
 let currentMatches = [];
 let draggedSite = null;
+let draggedModule = null;
 let detectController = null;
 let lastAutoName = "";
 let lastAutoDescription = "";
@@ -219,6 +224,7 @@ function moduleIconMarkup(module) {
     return `<img class="module-icon module-icon-image" src="${value}" alt="" />`;
   }
   if (value && value.length <= 12) {
+    if (value.startsWith("icon:") && /^[a-z-]+$/.test(value.slice(5))) return icon(value.slice(5), "ui-icon module-icon");
     return `<span class="module-icon module-icon-text" aria-hidden="true">${escapeHtml(value)}</span>`;
   }
   const id = Object.hasOwn(defaultSites, module.id) ? module.id : "daily";
@@ -249,7 +255,7 @@ function renderModules() {
     const editing = editingModules.has(module.id);
     const addButton = editing || !module.sites.length
       ? `<button class="add-site-button" type="button" data-action="add-site" data-module-id="${id}">＋ 添加网站</button>` : "";
-    return `<article class="module-card" data-module-id="${id}" data-editing="${editing}">
+    return `<article class="module-card" draggable="true" title="拖动调整模块位置" data-module-id="${id}" data-editing="${editing}">
       <header class="module-header">
         <div class="module-title-wrap">${moduleIconMarkup(module)}<h2 class="module-title" title="双击修改名称">${escapeHtml(module.name)}</h2><span class="site-count">${module.sites.length}</span></div>
         <div class="module-menu"><button class="more-button" type="button" data-menu="module" aria-label="${escapeHtml(module.name)}菜单" aria-expanded="false">${icon("more")}</button></div>
@@ -372,8 +378,19 @@ function openModuleDialog(moduleId) {
   $("#moduleIconHint").textContent = "图标随模块一起保存与同步。";
   $("#saveModuleBtn").textContent = module ? "保存模块" : "创建模块";
   $("#saveModuleBtn").disabled = false;
+  renderModuleIconChoices();
   renderModuleIconDraft();
   moduleDialog.showModal();
+}
+
+function renderModuleIconChoices() {
+  const choices = $("#moduleIconChoices");
+  choices.innerHTML = moduleIconOptions.map(([value, label]) => {
+    const stored = /^[a-z-]+$/.test(value) ? `icon:${value}` : value;
+    const content = stored.startsWith("icon:") ? icon(stored.slice(5), "ui-icon") : escapeHtml(value);
+    const active = moduleDraft?.icon === stored;
+    return `<button class="module-icon-choice${active ? " active" : ""}" type="button" data-module-icon="${escapeHtml(stored)}" title="${label}" aria-label="${label}">${content}</button>`;
+  }).join("");
 }
 
 function renameModule(moduleId) {
@@ -759,6 +776,17 @@ $("#moduleIconText").addEventListener("input", event => {
   $("#moduleIconHint").textContent = "图标随模块一起保存与同步。";
   $("#saveModuleBtn").disabled = false;
   renderModuleIconDraft();
+  renderModuleIconChoices();
+});
+$("#moduleIconChoices").addEventListener("click", event => {
+  const choice = event.target.closest("[data-module-icon]");
+  if (!choice) return;
+  moduleImageRequest++;
+  moduleDraft.icon = choice.dataset.moduleIcon;
+  $("#moduleIconText").value = "";
+  $("#moduleIconHint").textContent = "已选择风格图标，保存后会随模块同步。";
+  renderModuleIconDraft();
+  renderModuleIconChoices();
 });
 $("#uploadModuleIconBtn").addEventListener("click", () => $("#moduleIconFile").click());
 $("#resetModuleIconBtn").addEventListener("click", () => {
@@ -797,7 +825,17 @@ function clearDragStyles() {
 
 moduleGrid.addEventListener("dragstart", event => {
   const card = event.target.closest(".site-card");
-  if (!card) return;
+  if (!card) {
+    const moduleCard = event.target.closest(".module-card");
+    if (!moduleCard) return;
+    closeTooltip();
+    closeMenu();
+    draggedModule = moduleCard.dataset.moduleId;
+    moduleCard.classList.add("dragging-module");
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", draggedModule);
+    return;
+  }
   closeTooltip();
   closeMenu();
   draggedSite = { siteId: card.dataset.siteId, fromModuleId: card.dataset.moduleId };
@@ -809,7 +847,9 @@ moduleGrid.addEventListener("dragstart", event => {
 moduleGrid.addEventListener("dragend", event => {
   clearDragStyles();
   event.target.closest(".site-card")?.classList.remove("dragging");
+  event.target.closest(".module-card")?.classList.remove("dragging-module");
   draggedSite = null;
+  draggedModule = null;
 });
 
 function dropsBefore(event, card) {
@@ -817,11 +857,20 @@ function dropsBefore(event, card) {
   return event.clientX < rect.left + rect.width / 2;
 }
 
+function dropsBeforeModule(event, card) {
+  const rect = card.getBoundingClientRect();
+  return event.clientY < rect.top + rect.height / 2;
+}
+
 moduleGrid.addEventListener("dragover", event => {
   const moduleCard = event.target.closest(".module-card");
-  if (!moduleCard || !draggedSite) return;
+  if (!moduleCard || (!draggedSite && !draggedModule)) return;
   event.preventDefault();
   clearDragStyles();
+  if (draggedModule) {
+    if (moduleCard.dataset.moduleId !== draggedModule) moduleCard.classList.add(dropsBeforeModule(event, moduleCard) ? "drop-before" : "drop-after");
+    return;
+  }
   moduleCard.classList.add("drag-target");
   const targetSite = event.target.closest(".site-card");
   if (targetSite && targetSite.dataset.siteId !== draggedSite.siteId) {
@@ -831,8 +880,20 @@ moduleGrid.addEventListener("dragover", event => {
 
 moduleGrid.addEventListener("drop", event => {
   const moduleCard = event.target.closest(".module-card");
-  if (!moduleCard || !draggedSite) return;
+  if (!moduleCard || (!draggedSite && !draggedModule)) return;
   event.preventDefault();
+  if (draggedModule) {
+    const fromIndex = data.modules.findIndex(module => module.id === draggedModule);
+    let toIndex = data.modules.findIndex(module => module.id === moduleCard.dataset.moduleId);
+    if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
+    const [module] = data.modules.splice(fromIndex, 1);
+    if (!dropsBeforeModule(event, moduleCard)) toIndex += 1;
+    if (fromIndex < toIndex) toIndex -= 1;
+    data.modules.splice(toIndex, 0, module);
+    saveData("模块顺序已更新");
+    clearDragStyles(); draggedModule = null; renderModules();
+    return;
+  }
   const targetModule = data.modules.find(module => module.id === moduleCard.dataset.moduleId);
   const sourceModule = data.modules.find(module => module.id === draggedSite.fromModuleId);
   const sourceIndex = sourceModule?.sites.findIndex(site => site.id === draggedSite.siteId) ?? -1;
