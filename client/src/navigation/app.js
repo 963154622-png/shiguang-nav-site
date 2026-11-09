@@ -181,8 +181,8 @@ function domainOf(url) {
 }
 
 function faviconFor(url) {
-  const host = domainOf(url);
-  return host ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=64` : "";
+  const address = normalizeUrl(url);
+  return address ? new URL("/favicon.ico", address).href : "";
 }
 
 function inferredName(url) {
@@ -228,7 +228,7 @@ function logoMarkup(site) {
   if (host === "github.com" && !site.favicon) return `<span class="site-logo has-logo">${icon("github", "engine-logo")}</span>`;
   const src = site.favicon || faviconFor(site.url);
   const color = /^#[0-9a-f]{6}$/i.test(site.color) ? site.color : "#44444b";
-  return `<span class="site-logo" style="--logo-bg:${color}"><span aria-hidden="true">${escapeHtml(siteInitial(site.name))}</span>${src ? `<img src="${escapeHtml(src)}" data-host="${escapeHtml(host)}" alt="" referrerpolicy="no-referrer" />` : ""}</span>`;
+  return `<span class="site-logo" style="--logo-bg:${color}"><span aria-hidden="true">${escapeHtml(siteInitial(site.name))}</span>${src ? `<img src="${escapeHtml(src)}" alt="" referrerpolicy="no-referrer" />` : ""}</span>`;
 }
 
 function siteTemplate(site, moduleId) {
@@ -264,13 +264,7 @@ document.addEventListener("load", event => {
 }, true);
 document.addEventListener("error", event => {
   const img = event.target;
-  if (!img.matches?.(".site-logo img")) return;
-  if (img.dataset.host && !img.dataset.retried) {
-    img.dataset.retried = "true";
-    img.src = `https://icons.duckduckgo.com/ip3/${encodeURIComponent(img.dataset.host)}.ico`;
-  } else {
-    img.hidden = true;
-  }
+  if (img.matches?.(".site-logo img")) img.hidden = true;
 }, true);
 
 function isLocalImage(value) {

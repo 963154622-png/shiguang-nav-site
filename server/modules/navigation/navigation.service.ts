@@ -77,7 +77,8 @@ export class NavigationService {
   }
 
   private readRecord(record: BaseRecord | undefined): Collection {
-    const revision = record?.fields[fields.revision];
+    const value = record?.fields[fields.revision];
+    const revision = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value;
     const data = plainText(record?.fields[fields.snapshot]);
     const updatedAt = plainText(record?.fields[fields.updatedAt]);
     if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 1 || !updatedAt) {
