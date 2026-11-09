@@ -9,6 +9,7 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
   const status = byId("cloudStatus");
   const notice = byId("cloudNotice");
   const refreshButtons = [byId("refreshCloudBtn"), byId("settingsRefreshCloudBtn")];
+  const syncButtons = [byId("syncCloudBtn"), byId("settingsSyncCloudBtn")];
   const enable = byId("enableCloudBtn");
   const useCloud = byId("useCloudVersionBtn");
   const useLocal = byId("useLocalVersionBtn");
@@ -104,6 +105,7 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
   function render() {
     const fresh = remote?.revision === 0;
     refreshButtons.forEach(button => { button.disabled = busy; });
+    syncButtons.forEach(button => { button.disabled = busy; });
     enable.hidden = !fresh;
     useCloud.hidden = useLocal.hidden = !conflict;
     [enable, useCloud, useLocal].forEach(button => { button.disabled = busy; });
@@ -243,7 +245,23 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
     localTimer = setTimeout(() => refresh(), 350);
   }
 
+  // A manual sync is an explicit "upload this device's current collection"
+  // action. Fetch the latest revision first so the write remains conflict-safe.
+  function syncNow() {
+    return run(async () => {
+      ({ result: remote } = await request("GET"));
+      const revision = Number.isSafeInteger(remote?.revision) ? remote.revision : 0;
+      await send(revision);
+      if (conflict) {
+        notify("云端有更新版本，请先选择保留哪一份");
+      } else {
+        notify("已同步到云端（含品牌图标与页面设置）");
+      }
+    });
+  }
+
   for (const button of refreshButtons) button.addEventListener("click", () => refresh(true));
+  for (const button of syncButtons) button.addEventListener("click", syncNow);
   byId("cloudNoticeBtn").addEventListener("click", openSettings);
   enable.addEventListener("click", () => {
     if (remote?.revision !== 0) return;

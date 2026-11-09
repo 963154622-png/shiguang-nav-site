@@ -65,6 +65,7 @@
       <section class="workspace" aria-label="网站收藏">
         <div class="collection-actions">
           <button class="soft-button glass-control" id="refreshCloudBtn" type="button" title="从云端读取最新收藏">更新数据</button>
+          <button class="primary-button glass-control" id="syncCloudBtn" type="button" title="将本机导航、品牌和页面设置同步到云端">同步到云端</button>
           <button class="soft-button glass-control" id="addModuleBtn" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#plus"/></svg>新建模块</button>
         </div>
         <div class="cloud-notice" id="cloudNotice" hidden>
@@ -155,9 +156,10 @@
             <div class="settings-choice" id="settingsThemeChoice"><button data-theme="light" type="button">☀ 浅色</button><button data-theme="system" type="button">◐ 跟随系统</button><button data-theme="dark" type="button">☾ 深色</button></div>
           </section>
           <section class="setting-panel" data-settings-panel="data" hidden>
-            <div class="setting-title"><span>☁</span><div><h3>飞书云端收藏</h3><p>输入同步码后，可在任意联网设备同步模块、网址、简介、图标和排序。</p></div></div>
+            <div class="setting-title"><span>☁</span><div><h3>飞书云端收藏</h3><p>输入同步码后，可在任意联网设备同步模块、网址、简介、图标、品牌和页面设置。</p></div></div>
             <p class="settings-hint cloud-status" id="cloudStatus" role="status">正在检查云端收藏…</p>
             <div class="manage-actions">
+              <button class="primary-button settings-action" id="settingsSyncCloudBtn" type="button">同步到云端</button>
               <button class="soft-button settings-action" id="settingsRefreshCloudBtn" type="button">更新数据</button>
               <button class="primary-button settings-action" id="enableCloudBtn" type="button" hidden>同步本机收藏到云端</button>
               <button class="soft-button settings-action" id="useCloudVersionBtn" type="button" hidden>使用云端收藏</button>
