@@ -1158,6 +1158,7 @@ cloudSync = createCollectionSync({
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { return false; }
     data = next;
     editingModules.clear();
+    applyContent();
     renderModules();
     updateSuggestions();
     return true;
