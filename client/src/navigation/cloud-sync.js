@@ -1,4 +1,4 @@
-import { axiosForBackend } from "@lark-apaas/client-toolkit/utils/getAxiosForBackend";
+import axios from "axios";
 
 export function createCollectionSync({ getModules, setModules, defaultModules, isEditing, notify, openSettings }) {
   const key = "shiguang-nav-cloud-v1";
@@ -114,9 +114,15 @@ export function createCollectionSync({ getModules, setModules, defaultModules, i
 
   async function request(method, body, canRetry = true) {
     const code = accessCode || await requestAccess();
-    const response = await axiosForBackend({
-      url: "/api/collection", method, data: body,
-      headers: { "X-Shiguang-Access": code },
+    const basePath = window.location.pathname.replace(/\/+$/, "");
+    const csrf = document.cookie.split("; ").find(item => item.startsWith("suda-csrf-token="))?.slice("suda-csrf-token=".length) || "";
+    const response = await axios({
+      url: `${basePath}/api/collection`, method, data: body,
+      headers: {
+        "X-Shiguang-Access": code,
+        ...(csrf && { "X-Suda-Csrf-Token": csrf })
+      },
+      withCredentials: true,
       timeout: 15_000,
       validateStatus: () => true
     });
