@@ -119,6 +119,7 @@ let tooltipAnchor;
 let menuAnchor;
 let pendingBrandImage = "";
 let brandImageRequest = 0;
+let faviconImageRequest = 0;
 let moduleDraft;
 let moduleImageRequest = 0;
 let cloudSync;
@@ -406,6 +407,7 @@ function openSiteDialog(moduleId, siteId = null) {
   closeTooltip();
   $("#siteForm").reset();
   $("#siteUrl").setCustomValidity("");
+  $("#siteFaviconFile").value = "";
   $("#siteId").value = siteId || "";
   $("#siteDialogTitle").textContent = siteId ? "编辑网站" : "添加网站";
   $("#detectStatus").textContent = "输入网址后，将自动尝试识别名称、简介和图标。";
@@ -509,9 +511,26 @@ $("#siteUrl").addEventListener("input", () => {
 $("#siteUrl").addEventListener("blur", () => { if (!$("#siteId").value) detectMetadata(); });
 $("#siteName").addEventListener("input", updateFaviconPreview);
 $("#siteFavicon").addEventListener("input", updateFaviconPreview);
+$("#uploadFaviconBtn").addEventListener("click", () => $("#siteFaviconFile").click());
+$("#siteFaviconFile").addEventListener("change", async event => {
+  const file = event.target.files[0];
+  event.target.value = "";
+  if (!file) return;
+  const request = ++faviconImageRequest;
+  try {
+    const image = await compressImage(file, { max: 64, type: "image/webp", quality: .7 });
+    if (request !== faviconImageRequest || !siteDialog.open) return;
+    $("#siteFavicon").value = image;
+    updateFaviconPreview();
+    $("#detectStatus").textContent = "已上传图标；保存后会随网站一起同步。";
+  } catch {
+    if (request === faviconImageRequest && siteDialog.open) $("#detectStatus").textContent = "无法读取这张图标，请换一张再试。";
+  }
+});
 siteDialog.addEventListener("close", () => {
   detectController?.abort();
   detectController = null;
+  faviconImageRequest++;
   $("#detectStatus").classList.remove("loading");
 });
 

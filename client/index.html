@@ -85,7 +85,7 @@
         <label>网站名称<input id="siteName" required maxlength="30" placeholder="例如：少数派" /></label>
         <label>网站简介（自动识别，可修改）<input id="siteDescription" maxlength="80" placeholder="将自动读取网页简介，也可手动修改" aria-describedby="siteDescriptionHint" /></label>
         <p class="field-hint" id="siteDescriptionHint">输入网址后自动尝试读取网页描述；鼠标悬停在网站入口时显示。</p>
-        <label>网站图标<span class="favicon-row"><span class="favicon-preview"><img id="faviconPreview" alt="" /><b id="faviconFallback">网</b></span><input id="siteFavicon" inputmode="url" placeholder="可粘贴图标图片网址，也可留空" /></span></label>
+        <label>网站图标（自动识别，可上传）<span class="favicon-row"><span class="favicon-preview"><img id="faviconPreview" alt="" /><b id="faviconFallback">网</b></span><input id="siteFavicon" inputmode="url" placeholder="自动识别，也可粘贴网址" /><button id="uploadFaviconBtn" type="button">上传</button><input id="siteFaviconFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" hidden /></span></label>
         <label>所属模块<select id="siteModule" required></select></label>
         <label id="newModuleField" hidden>新模块名称<input id="newModuleName" maxlength="20" placeholder="例如：设计灵感" /></label>
         <div class="dialog-actions"><button class="text-button" type="button" data-close-dialog="siteDialog">取消</button><button class="primary-button" id="saveSiteBtn" value="default" type="submit">保存网站</button></div>
