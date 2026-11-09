@@ -1107,6 +1107,29 @@ $("#exportBtn").addEventListener("click", () => {
   showToast("备份已导出");
 });
 
+function captureBookmarklet() {
+  const appUrl = `${location.origin}${location.pathname}`;
+  return `javascript:(()=>{const d=document,p=new URL(${JSON.stringify(appUrl)}),i=d.querySelector('link[rel~="icon"]');p.searchParams.set('captureUrl',location.href);p.searchParams.set('captureTitle',d.title||'');p.searchParams.set('captureDescription',d.querySelector('meta[name="description"]')?.content||d.querySelector('meta[property="og:description"]')?.content||'');p.searchParams.set('captureFavicon',i?.href||'');window.open(p.href,'_blank')})()`;
+}
+
+$("#copyCaptureBookmarkletBtn").addEventListener("click", async () => {
+  const value = captureBookmarklet();
+  try {
+    await navigator.clipboard.writeText(value);
+  } catch {
+    const input = document.createElement("textarea");
+    input.value = value;
+    input.style.position = "fixed";
+    input.style.opacity = "0";
+    document.body.appendChild(input);
+    input.select();
+    document.execCommand("copy");
+    input.remove();
+  }
+  $("#captureBookmarkletStatus").textContent = "采集代码已复制。请新建浏览器书签，把地址粘贴为这段代码。";
+  showToast("采集书签已复制");
+});
+
 function markdownText(value) {
   return String(value ?? "").replace(/[\r\n]+/g, " ").replace(/[\\`*_{}\[\]()#|!<>]/g, "\\$&");
 }
@@ -1191,3 +1214,22 @@ cloudSync = createCollectionSync({
   }
 });
 cloudSync.start();
+
+function openCapturedSite() {
+  const params = new URLSearchParams(location.search);
+  const url = params.get("captureUrl");
+  if (!url) return;
+  const title = params.get("captureTitle") || "";
+  const description = params.get("captureDescription") || "";
+  const favicon = params.get("captureFavicon") || "";
+  try { history.replaceState(null, "", `${location.pathname}${location.hash}`); } catch {}
+  openSiteDialog(data.modules[0]?.id);
+  $("#siteUrl").value = url;
+  $("#siteName").value = title.slice(0, 30);
+  $("#siteDescription").value = description.slice(0, 80);
+  $("#siteFavicon").value = favicon;
+  $("#detectStatus").textContent = "已从浏览器采集，可继续修改后保存。";
+  updateFaviconPreview();
+}
+
+setTimeout(openCapturedSite, 250);
