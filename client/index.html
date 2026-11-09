@@ -1,23 +1,175 @@
-<!DOCTYPE html>
-<html lang="zh">
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="iOS 毛玻璃风格的可编辑中文个人导航站" />
+    <meta name="theme-color" content="#f5f5f7" />
+    <title>拾光导航</title>
+    <link rel="icon" type="image/svg+xml" href="/mark.svg" />
+    <link rel="stylesheet" href="/client/src/navigation/styles.css" />
+    <script>
+      try {
+        window.__platform__ = JSON.parse('{{{__platform__}}}');
+      } catch {
+        window.__platform__ = {};
+      }
+    </script>
+  </head>
+  <body data-layout="1">
+    <div class="wallpaper" id="wallpaper" aria-hidden="true"></div>
+    <div class="page-tint" aria-hidden="true"></div>
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" href="/favicon.svg">
-  <title>妙搭</title>
-  <script>
-    try {
-      window.__platform__ = JSON.parse('{{{__platform__}}}');
-    } catch (e) {
-      console.error('Failed to parse __platform__', e);
-    }
-  </script>
-</head>
+    <header class="topbar shell">
+      <a class="brand" href="#" aria-label="拾光导航首页"><span class="brand-mark">拾</span><span>拾光导航</span></a>
+      <div class="top-actions">
+        <details class="toolbar-menu" id="themeMenu">
+          <summary class="icon-button glass-control" aria-label="主题模式" title="主题模式"><svg class="ui-icon" aria-hidden="true"><use href="#sun"/></svg></summary>
+          <div class="toolbar-popover" role="group" aria-label="主题模式">
+            <p>主题模式</p>
+            <button data-theme="light" type="button"><span>☀</span>浅色</button>
+            <button data-theme="dark" type="button"><span>☾</span>深色</button>
+            <button data-theme="system" type="button"><span>◐</span>跟随系统</button>
+          </div>
+        </details>
+        <details class="toolbar-menu" id="layoutMenu">
+          <summary class="icon-button glass-control" aria-label="模块显示" title="模块显示"><svg class="ui-icon" aria-hidden="true"><use href="#grid"/></svg></summary>
+          <div class="toolbar-popover" role="group" aria-label="模块页面布局">
+            <p>模块显示</p>
+            <button type="button" data-layout-choice="1"><span>▭</span>一列</button>
+            <button type="button" data-layout-choice="2"><span>▥</span>两列</button>
+            <button type="button" data-layout-choice="3"><span>▦</span>三列</button>
+            <button type="button" data-layout-choice="4"><span>▦</span>四列</button>
+          </div>
+        </details>
+        <button class="icon-button glass-control" id="settingsBtn" type="button" aria-label="打开设置" title="设置"><svg class="ui-icon" aria-hidden="true"><use href="#settings"/></svg></button>
+        <button class="add-top-button" id="addSiteTopBtn" type="button" aria-label="添加网站" title="添加网站"><svg class="ui-icon" aria-hidden="true"><use href="#plus"/></svg></button>
+      </div>
+    </header>
 
-<body>
-  <div id="root"></div>
-  <script type="module" src="/client/src/index.tsx"></script>
-</body>
+    <main class="shell">
+      <section class="hero" aria-labelledby="hero-title">
+        <h1 id="hero-title" title="双击编辑">我的数字空间</h1>
+        <p id="hero-subtitle" class="hero-copy" title="双击编辑">收藏灵感，连接世界，从这里开始。</p>
+        <div class="search-wrap" id="searchWrap">
+          <form class="search-box glass" id="searchForm" role="search">
+            <svg class="ui-icon search-glyph" aria-hidden="true"><use href="#search"/></svg>
+            <input id="searchInput" type="search" autocomplete="off" placeholder="搜索网页或收藏的网站" aria-label="搜索" />
+            <button class="search-button" type="submit" aria-label="开始搜索"><svg class="ui-icon" aria-hidden="true"><use href="#arrow"/></svg></button>
+          </form>
+          <div class="suggestions glass" id="suggestions" role="listbox" aria-label="本站匹配结果" hidden></div>
+        </div>
+        <div class="engine-shortcuts" id="engineShortcuts" aria-label="切换搜索引擎"></div>
+      </section>
 
+      <section class="workspace" aria-label="网站收藏">
+        <div class="collection-actions">
+          <button class="soft-button glass-control" id="refreshCloudBtn" type="button" title="从云端读取最新收藏">更新数据</button>
+          <button class="soft-button glass-control" id="addModuleBtn" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#plus"/></svg>新建模块</button>
+        </div>
+        <div class="cloud-notice" id="cloudNotice" hidden>
+          <p id="cloudNoticeText"></p>
+          <button class="soft-button" id="cloudNoticeBtn" type="button">查看同步设置</button>
+        </div>
+        <div class="module-grid" id="moduleGrid"></div>
+        <div class="empty-state glass" id="emptyState" hidden><span>✦</span><h3>这里还没有模块</h3><p>新建一个模块，开始整理你的常用网站。</p><button class="primary-button" type="button" data-action="add-module">新建模块</button></div>
+      </section>
+    </main>
+    <dialog id="siteDialog" aria-labelledby="siteDialogTitle">
+      <form method="dialog" id="siteForm" class="dialog-card">
+        <div class="dialog-heading"><h2 id="siteDialogTitle">添加网站</h2><button class="close-button" type="button" data-close-dialog="siteDialog" aria-label="关闭">×</button></div>
+        <input type="hidden" id="siteId" />
+        <label>网站地址<span class="url-row"><input id="siteUrl" required inputmode="url" placeholder="example.com" /><button id="detectBtn" type="button">自动识别</button></span></label>
+        <p class="detect-status" id="detectStatus">输入网址后，将自动尝试识别名称和图标。</p>
+        <label>网站名称<input id="siteName" required maxlength="30" placeholder="例如：少数派" /></label>
+        <label>网站简介（选填）<input id="siteDescription" maxlength="80" placeholder="例如：代码托管与开源协作" aria-describedby="siteDescriptionHint" /></label>
+        <p class="field-hint" id="siteDescriptionHint">鼠标悬停在网站入口时显示。留空时只显示域名。</p>
+        <label>网站图标<span class="favicon-row"><span class="favicon-preview"><img id="faviconPreview" alt="" /><b id="faviconFallback">网</b></span><input id="siteFavicon" inputmode="url" placeholder="可粘贴图标图片网址，也可留空" /></span></label>
+        <label>所属模块<select id="siteModule" required></select></label>
+        <label id="newModuleField" hidden>新模块名称<input id="newModuleName" maxlength="20" placeholder="例如：设计灵感" /></label>
+        <div class="dialog-actions"><button class="text-button" type="button" data-close-dialog="siteDialog">取消</button><button class="primary-button" id="saveSiteBtn" value="default" type="submit">保存网站</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="moduleDialog" aria-labelledby="moduleDialogTitle">
+      <form method="dialog" id="moduleForm" class="dialog-card compact">
+        <div class="dialog-heading"><h2 id="moduleDialogTitle">新建模块</h2><button class="close-button" type="button" data-close-dialog="moduleDialog" aria-label="关闭">×</button></div>
+        <label>模块名称<input id="moduleName" required maxlength="20" placeholder="例如：设计灵感" /></label>
+        <label>模块图标<span class="module-icon-field"><span class="module-icon-preview" id="moduleIconPreview" aria-hidden="true"></span><input id="moduleIconText" maxlength="12" placeholder="输入表情或短文字" /></span></label>
+        <div class="manage-actions">
+          <button class="soft-button settings-action" id="uploadModuleIconBtn" type="button">上传图片</button>
+          <button class="soft-button settings-action" id="resetModuleIconBtn" type="button">恢复默认图标</button>
+          <input id="moduleIconFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+        </div>
+        <p class="field-hint" id="moduleIconHint" aria-live="polite">图标随模块一起保存与同步。</p>
+        <div class="dialog-actions"><button class="text-button" type="button" data-close-dialog="moduleDialog">取消</button><button class="primary-button" id="saveModuleBtn" value="default" type="submit">创建模块</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="manageDialog" class="settings-dialog">
+      <div class="dialog-card manage-card">
+        <div class="dialog-heading"><h2>设置</h2><button class="close-button" id="closeManageBtn" type="button" aria-label="关闭">×</button></div>
+        <nav class="settings-tabs" aria-label="设置分类">
+          <button class="active" type="button" data-settings-tab="brand">品牌</button>
+          <button type="button" data-settings-tab="appearance">壁纸与外观</button>
+          <button type="button" data-settings-tab="data">数据</button>
+        </nav>
+        <div class="settings-panels">
+          <section class="setting-panel active" data-settings-panel="brand">
+            <div class="setting-title"><span id="brandPreview" class="brand-mark" aria-hidden="true">拾</span><div><h3>导航品牌</h3><p>上传图片，或用文字和表情作为左上角图标。</p></div></div>
+            <div class="brand-fields"><label>图标<input id="brandIconInput" maxlength="2" placeholder="拾" /></label><label>名称<input id="brandNameInput" maxlength="16" placeholder="拾光导航" /></label></div>
+            <div class="manage-actions">
+              <button class="soft-button settings-action" id="uploadBrandBtn" type="button">上传图标</button>
+              <button class="soft-button settings-action" id="removeBrandImageBtn" type="button">使用文字图标</button>
+              <input id="brandImageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
+            </div>
+            <p class="settings-hint" id="brandImageHint" aria-live="polite">支持 PNG、JPG、WebP 和 GIF，图片保存在当前浏览器。</p>
+            <button class="primary-button" id="saveBrandBtn" type="button">保存品牌</button>
+          </section>
+          <section class="setting-panel" data-settings-panel="appearance" hidden>
+            <div class="setting-title"><span>▧</span><div><h3>自定义壁纸</h3><p>图片会压缩后保存在当前浏览器中。</p></div></div>
+            <div class="wallpaper-preview" id="wallpaperPreview"><span>当前背景预览</span></div>
+            <div class="wallpaper-presets" id="wallpaperPresets" aria-label="预设壁纸"></div>
+            <div class="manage-actions">
+              <button class="soft-button settings-action" id="uploadWallpaperBtn" type="button">上传壁纸</button>
+              <button class="soft-button settings-action" id="removeWallpaperBtn" type="button">恢复默认背景</button>
+              <input id="wallpaperInput" type="file" accept="image/*" hidden />
+            </div>
+            <div class="setting-divider"></div>
+            <div class="setting-title"><span>◐</span><div><h3>主题模式</h3><p>选择浅色、深色或跟随系统。</p></div></div>
+            <div class="settings-choice" id="settingsThemeChoice"><button data-theme="light" type="button">☀ 浅色</button><button data-theme="system" type="button">◐ 跟随系统</button><button data-theme="dark" type="button">☾ 深色</button></div>
+          </section>
+          <section class="setting-panel" data-settings-panel="data" hidden>
+            <div class="setting-title"><span>☁</span><div><h3>飞书云端收藏</h3><p>在飞书内打开即可同步模块、网址、简介、图标和排序。</p></div></div>
+            <p class="settings-hint cloud-status" id="cloudStatus" role="status">正在检查云端收藏…</p>
+            <div class="manage-actions">
+              <button class="soft-button settings-action" id="settingsRefreshCloudBtn" type="button">更新数据</button>
+              <button class="primary-button settings-action" id="enableCloudBtn" type="button" hidden>同步本机收藏到云端</button>
+              <button class="soft-button settings-action" id="useCloudVersionBtn" type="button" hidden>使用云端收藏</button>
+              <button class="soft-button settings-action" id="useLocalVersionBtn" type="button" hidden>使用本机收藏</button>
+            </div>
+            <div class="setting-divider"></div>
+            <div class="setting-title"><span>⇄</span><div><h3>导航数据</h3><p>导出或导入备份。启用云同步后，导入的收藏也会同步到其他设备。</p></div></div>
+            <div class="manage-actions">
+              <button class="soft-button settings-action" id="exportBtn" type="button">导出备份</button>
+              <button class="soft-button settings-action" id="importBackupBtn" type="button">导入备份</button>
+              <input id="importInput" type="file" accept="application/json,.json" hidden />
+            </div>
+            <div class="setting-divider"></div>
+            <div class="setting-title"><span>↗</span><div><h3>飞书收藏清单</h3><p>可查看原始清单，或导出按模块整理的当前收藏。</p></div></div>
+            <div class="manage-actions">
+              <a class="soft-button settings-action" target="_blank" rel="noopener noreferrer" href="https://hw1zbshwiyn.feishu.cn/docx/XnIadxGuroXCUdxTvpocUIjFnSc">打开飞书清单</a>
+              <button class="soft-button settings-action" id="exportFeishuBtn" type="button">导出飞书清单</button>
+            </div>
+            <div class="danger-zone"><div><strong>恢复默认</strong><span>恢复本机设置。启用云同步后，默认收藏也会同步到其他设备。</span></div><button class="danger-button" id="resetBtn" type="button">恢复默认</button></div>
+          </section>
+        </div>
+      </div>
+    </dialog>
+    <div class="site-tooltip" id="siteTooltip" role="tooltip" hidden>
+      <strong id="tooltipDescription"></strong><span id="tooltipDomain"></span>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/client/src/navigation/app.js"></script>
+  </body>
 </html>

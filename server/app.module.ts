@@ -4,6 +4,14 @@ import { PlatformModule } from '@lark-apaas/fullstack-nestjs-core';
 
 import { GlobalExceptionFilter } from './common/filters/exception.filter';
 import { ViewModule } from './modules/view/view.module';
+import { NavigationController } from './modules/navigation/navigation.controller';
+import { NavigationService } from './modules/navigation/navigation.service';
+
+@Module({
+  controllers: [NavigationController],
+  providers: [NavigationService],
+})
+class NavigationModule {}
 
 @Module({
   imports: [
@@ -11,6 +19,7 @@ import { ViewModule } from './modules/view/view.module';
     PlatformModule.forRoot(),
     // ====== @route-section: business-modules START ======
     // Place all business modules here.Do NOT add fallback modules here.
+    NavigationModule,
     // ====== @route-section: business-modules END ======
 
     // ⚠️ @route-order: last
