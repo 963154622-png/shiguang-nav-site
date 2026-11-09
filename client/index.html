@@ -98,12 +98,12 @@
         <label>模块名称<input id="moduleName" required maxlength="20" placeholder="例如：设计灵感" /></label>
         <label>模块图标<span class="module-icon-field"><span class="module-icon-preview" id="moduleIconPreview" aria-hidden="true"></span><input id="moduleIconText" maxlength="12" placeholder="输入表情或短文字" /></span></label>
         <div class="module-icon-choices" id="moduleIconChoices" aria-label="选择模块图标"></div>
+        <p class="field-hint module-icon-hint" id="moduleIconHint" aria-live="polite">图标随模块一起保存与同步。</p>
         <div class="manage-actions">
           <button class="soft-button settings-action" id="uploadModuleIconBtn" type="button">上传图片</button>
           <button class="soft-button settings-action" id="resetModuleIconBtn" type="button">恢复默认图标</button>
           <input id="moduleIconFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden />
         </div>
-        <p class="field-hint" id="moduleIconHint" aria-live="polite">图标随模块一起保存与同步。</p>
         <div class="dialog-actions"><button class="text-button" type="button" data-close-dialog="moduleDialog">取消</button><button class="primary-button" id="saveModuleBtn" value="default" type="submit">创建模块</button></div>
       </form>
     </dialog>

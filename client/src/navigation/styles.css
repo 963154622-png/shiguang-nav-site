@@ -126,6 +126,7 @@ body[data-layout="4"] { --columns: 4; }
 .module-icon-choice { min-height: 36px; display: grid; place-items: center; padding: 5px; border: 1px solid var(--line-soft); border-radius: 10px; color: var(--muted); background: var(--glass-soft); font-size: 16px; }
 .module-icon-choice:hover,.module-icon-choice.active { color: var(--primary); border-color: var(--primary); background: var(--primary-soft); }
 .module-icon-choice .ui-icon { width: 18px; height: 18px; }
+.module-icon-hint { margin: -2px 0 10px; }
 .module-title { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; font-size: 16px; font-weight: 620; }
 .site-count { padding: 2px 7px; border-radius: 99px; color: var(--muted); background: var(--primary-soft); font-size: 11px; font-weight: 560; }
 .more-button { width: 29px; height: 29px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 9px; color: var(--subtle); background: transparent; }
