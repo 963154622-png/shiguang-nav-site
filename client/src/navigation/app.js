@@ -97,7 +97,10 @@ const defaultData = {
 const recommendedSites = new Map(defaultData.modules.flatMap(module => module.sites.map(site => [domainOf(site.url), site])));
 const moduleIconOptions = [
   ["daily", "工具"], ["learn", "学习"], ["design", "设计"], ["office", "办公"], ["dev", "开发"], ["life", "生活"],
-  ["✦", "星光"], ["⌘", "快捷"], ["⚡", "效率"], ["◉", "收藏"], ["☁", "云端"], ["♡", "灵感"]
+  ["home-line", "主页"], ["folder-line", "文件夹"], ["bookmark-line", "书签"], ["calendar-line", "日历"], ["chart-line", "图表"], ["camera-line", "相机"],
+  ["mail-line", "邮件"], ["cloud-line", "云端"], ["database-line", "数据"], ["rocket-line", "项目"], ["map-line", "地图"], ["users-line", "团队"],
+  ["image-line", "图片"], ["music-line", "音乐"], ["video-line", "视频"], ["wallet-line", "钱包"], ["gift-line", "福利"], ["bell-line", "提醒"], ["link-line", "链接"],
+  ["✦", "星光"], ["⌘", "快捷"], ["⚡", "效率"], ["◉", "收藏"], ["♡", "灵感"]
 ];
 
 const clone = value => JSON.parse(JSON.stringify(value));
