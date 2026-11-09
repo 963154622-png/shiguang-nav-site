@@ -1133,9 +1133,9 @@ setupEngines();
 applyContent();
 renderModules();
 cloudSync = createCollectionSync({
-  getModules: () => data.modules,
-  setModules(modules) {
-    const next = { ...data, modules };
+  getCollection: () => data,
+  setCollection(collection) {
+    const next = { ...data, ...collection };
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { return false; }
     data = next;
     editingModules.clear();
@@ -1143,7 +1143,7 @@ cloudSync = createCollectionSync({
     updateSuggestions();
     return true;
   },
-  defaultModules: defaultData.modules,
+  defaultCollection: defaultData,
   isEditing: () => Boolean(draggedSite || document.querySelector("#siteDialog[open],#moduleDialog[open],.module-title input")),
   notify: showToast,
   openSettings() {

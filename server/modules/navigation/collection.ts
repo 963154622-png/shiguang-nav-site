@@ -16,8 +16,28 @@ export type NavModule = {
   sites: Site[];
 };
 
+export type NavCollectionData = {
+  modules: NavModule[];
+  brandName?: string;
+  brandIcon?: string;
+  brandImage?: string;
+  title?: string;
+  subtitle?: string;
+  wallpaper?: string;
+  wallpaperPreset?: string;
+  layout?: number;
+};
+
 export type Collection = {
   modules: NavModule[];
+  brandName?: string;
+  brandIcon?: string;
+  brandImage?: string;
+  title?: string;
+  subtitle?: string;
+  wallpaper?: string;
+  wallpaperPreset?: string;
+  layout?: number;
   revision: number;
   updatedAt: string;
 };
@@ -59,21 +79,40 @@ export function validModules(value: unknown): value is NavModule[] {
   });
 }
 
-const rawLimit = 750_000;
-const encodedLimit = 90_000;
-const prefix = 'nav1:';
-
-export function pack(modules: NavModule[]): string | null {
-  const raw = JSON.stringify(modules);
-  if (Buffer.byteLength(raw) > rawLimit) return null;
-  const data = prefix + gzipSync(raw).toString('base64url');
-  return data.length <= encodedLimit ? data : null;
+function image(value: unknown, max: number): value is string {
+  return value == null || value === '' || (text(value, max) && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value));
 }
 
-export function unpack(data: string): NavModule[] {
+export function validCollection(value: unknown): value is NavCollectionData {
+  if (!value || typeof value !== 'object' || !validModules((value as { modules?: unknown }).modules)) return false;
+  const data = value as Record<string, unknown>;
+  return (data.brandName == null || text(data.brandName, 64)) &&
+    (data.brandIcon == null || text(data.brandIcon, 12)) &&
+    image(data.brandImage, 80_000) &&
+    (data.title == null || text(data.title, 120)) &&
+    (data.subtitle == null || text(data.subtitle, 200)) &&
+    image(data.wallpaper, 900_000) &&
+    (data.wallpaperPreset == null || text(data.wallpaperPreset, 32)) &&
+    (data.layout == null || (typeof data.layout === 'number' && Number.isInteger(data.layout) && [1, 2, 3, 4].includes(data.layout)));
+}
+
+const rawLimit = 1_200_000;
+const encodedLimit = 240_000;
+const prefix = 'nav1:';
+
+export function pack(data: NavCollectionData): string | null {
+  if (!validCollection(data)) return null;
+  const raw = JSON.stringify(data);
+  if (Buffer.byteLength(raw) > rawLimit) return null;
+  const encoded = prefix + gzipSync(raw).toString('base64url');
+  return encoded.length <= encodedLimit ? encoded : null;
+}
+
+export function unpack(data: string): NavCollectionData {
   if (!data.startsWith(prefix) || data.length > encodedLimit) throw new Error('Invalid snapshot');
   const raw = gunzipSync(Buffer.from(data.slice(prefix.length), 'base64url'), { maxOutputLength: rawLimit });
   const parsed: unknown = JSON.parse(raw.toString('utf8'));
-  if (!validModules(parsed)) throw new Error('Invalid snapshot');
+  if (validModules(parsed)) return { modules: parsed };
+  if (!validCollection(parsed)) throw new Error('Invalid snapshot');
   return parsed;
 }

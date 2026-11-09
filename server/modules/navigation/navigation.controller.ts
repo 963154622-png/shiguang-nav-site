@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { Body, Controller, Get, Put, Req, Res, UnauthorizedException } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { pack, validModules } from './collection';
+import { pack, validCollection } from './collection';
 import { NavigationService } from './navigation.service';
 
 @Controller('api/collection')
@@ -25,16 +25,27 @@ export class NavigationController {
   }
 
   @Put()
-  async save(@Req() request: Request, @Body() input: { revision?: unknown; modules?: unknown }, @Res() response: Response) {
+  async save(@Req() request: Request, @Body() input: { revision?: unknown; modules?: unknown; brandName?: unknown; brandIcon?: unknown; brandImage?: unknown; title?: unknown; subtitle?: unknown; wallpaper?: unknown; wallpaperPreset?: unknown; layout?: unknown }, @Res() response: Response) {
     this.authorize(request, response);
     const revision = input?.revision;
+    const data = {
+      modules: input?.modules,
+      brandName: input?.brandName,
+      brandIcon: input?.brandIcon,
+      brandImage: input?.brandImage,
+      title: input?.title,
+      subtitle: input?.subtitle,
+      wallpaper: input?.wallpaper,
+      wallpaperPreset: input?.wallpaperPreset,
+      layout: input?.layout,
+    };
     if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 1 ||
-        revision >= Number.MAX_SAFE_INTEGER || !validModules(input?.modules)) {
+        revision >= Number.MAX_SAFE_INTEGER || !validCollection(data)) {
       return response.status(400).json({ error: 'invalid_collection' });
     }
-    const snapshot = pack(input.modules);
+    const snapshot = pack(data);
     if (!snapshot) return response.status(413).json({ error: 'collection_too_large' });
-    const result = await this.navigation.save(revision, input.modules, snapshot);
+    const result = await this.navigation.save(revision, data, snapshot);
     const collection = result.collection;
     return result.conflict
       ? response.status(409).json(collection)

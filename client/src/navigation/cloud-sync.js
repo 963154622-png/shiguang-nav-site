@@ -1,11 +1,11 @@
 import axios from "axios";
 
-export function createCollectionSync({ getModules, setModules, defaultModules, isEditing, notify, openSettings }) {
+export function createCollectionSync({ getCollection, setCollection, defaultCollection, isEditing, notify, openSettings }) {
   const key = "shiguang-nav-cloud-v1";
   const accessKey = "shiguang-nav-access-v1";
   const byId = id => document.getElementById(id);
-  const snapshot = () => JSON.stringify(getModules());
-  const defaults = JSON.stringify(defaultModules);
+  const snapshot = () => JSON.stringify(getCollection());
+  const defaults = JSON.stringify(defaultCollection);
   const status = byId("cloudStatus");
   const notice = byId("cloudNotice");
   const refreshButtons = [byId("refreshCloudBtn"), byId("settingsRefreshCloudBtn")];
@@ -89,6 +89,14 @@ export function createCollectionSync({ getModules, setModules, defaultModules, i
     try { localStorage.setItem(key, JSON.stringify(base)); } catch {}
   }
 
+  function resultData(result) {
+    const data = { modules: result.modules };
+    for (const field of ["brandName", "brandIcon", "brandImage", "title", "subtitle", "wallpaper", "wallpaperPreset", "layout"]) {
+      if (Object.hasOwn(result, field)) data[field] = result[field];
+    }
+    return data;
+  }
+
   function formatTime(time) {
     return time ? new Date(time).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
   }
@@ -144,10 +152,10 @@ export function createCollectionSync({ getModules, setModules, defaultModules, i
 
   async function send(revision) {
     const sent = snapshot();
-    const response = await request("PUT", { revision, modules: JSON.parse(sent) });
+    const response = await request("PUT", { revision, ...JSON.parse(sent) });
     remote = response.result;
     if (response.conflict) {
-      if (remote.revision && JSON.stringify(remote.modules) === sent) {
+      if (remote.revision && JSON.stringify(resultData(remote)) === sent) {
         remember(remote, sent);
         conflict = false;
       } else {
@@ -161,8 +169,9 @@ export function createCollectionSync({ getModules, setModules, defaultModules, i
   }
 
   function adopt(result) {
-    const incoming = JSON.stringify(result.modules);
-    if (incoming !== snapshot() && !setModules(result.modules)) {
+    const incomingData = resultData(result);
+    const incoming = JSON.stringify(incomingData);
+    if (incoming !== snapshot() && !setCollection(incomingData)) {
       throw new Error("本机空间不足，无法读取云端收藏。请先导出备份。");
     }
     remember(result, incoming);
@@ -197,8 +206,13 @@ export function createCollectionSync({ getModules, setModules, defaultModules, i
         if (showFeedback) notify("云端还没有收藏");
         return;
       }
+      // Older cloud snapshots contain modules only. Preserve the current device's
+      // appearance during the one-time migration, then sync the full collection.
+      if (!Object.hasOwn(remote, "brandName") && !Object.hasOwn(remote, "wallpaper")) {
+        remote = { ...getCollection(), ...remote };
+      }
       const local = snapshot();
-      if (local === JSON.stringify(remote.modules)) {
+      if (local === JSON.stringify(resultData(remote))) {
         adopt(remote);
       } else if (base?.revision === remote.revision && local !== base.snapshot) {
         await send(base.revision);
@@ -227,7 +241,7 @@ export function createCollectionSync({ getModules, setModules, defaultModules, i
   byId("cloudNoticeBtn").addEventListener("click", openSettings);
   enable.addEventListener("click", () => {
     if (remote?.revision !== 0) return;
-    const modules = getModules();
+    const modules = getCollection().modules;
     const count = modules.reduce((total, module) => total + module.sites.length, 0);
     if (!confirm(`将本机的 ${modules.length} 个模块、${count} 个网站同步到云端？以后输入同一同步码的其他设备也可读取这份收藏。`)) return;
     run(async () => {

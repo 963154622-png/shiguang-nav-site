@@ -1,5 +1,5 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
-import { Collection, NavModule, unpack } from './collection';
+import { Collection, NavCollectionData, unpack } from './collection';
 
 type RecordFields = Record<string, unknown>;
 type BaseRecord = { fields: RecordFields };
@@ -85,7 +85,7 @@ export class NavigationService {
       throw new ServiceUnavailableException('飞书收藏版本暂不可用。');
     }
     try {
-      return { modules: unpack(data), revision, updatedAt };
+      return { ...unpack(data), revision, updatedAt };
     } catch {
       throw new ServiceUnavailableException('飞书收藏数据暂不可用。');
     }
@@ -97,13 +97,13 @@ export class NavigationService {
     return this.readRecord(result.data?.record);
   }
 
-  save(revision: number, modules: NavModule[], snapshot: string) {
-    const operation = this.writes.then(() => this.update(revision, modules, snapshot));
+  save(revision: number, collection: NavCollectionData, snapshot: string) {
+    const operation = this.writes.then(() => this.update(revision, collection, snapshot));
     this.writes = operation.then(() => undefined, () => undefined);
     return operation;
   }
 
-  private async update(revision: number, modules: NavModule[], snapshot: string) {
+  private async update(revision: number, collection: NavCollectionData, snapshot: string) {
     const previous = await this.read();
     if (previous.revision !== revision) return { conflict: true, collection: previous };
     const next = revision + 1;
@@ -125,7 +125,7 @@ export class NavigationService {
       if (actual.revision === previous.revision) throw error;
     }
     return {
-      conflict: actual.revision !== next || JSON.stringify(actual.modules) !== JSON.stringify(modules),
+      conflict: actual.revision !== next || JSON.stringify({ ...actual, revision: undefined, updatedAt: undefined }) !== JSON.stringify(collection),
       collection: actual,
     };
   }
