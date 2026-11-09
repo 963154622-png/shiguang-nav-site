@@ -2,6 +2,7 @@ import { axiosForBackend } from "@lark-apaas/client-toolkit/utils/getAxiosForBac
 
 export function createCollectionSync({ getModules, setModules, defaultModules, isEditing, notify, openSettings }) {
   const key = "shiguang-nav-cloud-v1";
+  const accessKey = "shiguang-nav-access-v1";
   const byId = id => document.getElementById(id);
   const snapshot = () => JSON.stringify(getModules());
   const defaults = JSON.stringify(defaultModules);
@@ -11,6 +12,15 @@ export function createCollectionSync({ getModules, setModules, defaultModules, i
   const enable = byId("enableCloudBtn");
   const useCloud = byId("useCloudVersionBtn");
   const useLocal = byId("useLocalVersionBtn");
+  const accessDialog = byId("accessDialog");
+  const accessForm = byId("accessForm");
+  const accessInput = byId("accessCodeInput");
+  const accessHint = byId("accessCodeHint");
+  let accessCode = "";
+  try { accessCode = localStorage.getItem(accessKey)?.trim() || ""; } catch {}
+  let accessPromise;
+  let accessResolve;
+  let accessReject;
   let base;
   try {
     const saved = JSON.parse(localStorage.getItem(key));
@@ -22,6 +32,53 @@ export function createCollectionSync({ getModules, setModules, defaultModules, i
   let error = "";
   let localTimer;
   let changedDuringAction = false;
+
+  function forgetAccess() {
+    accessCode = "";
+    try { localStorage.removeItem(accessKey); } catch {}
+  }
+
+  function requestAccess(message = "用于安全读取和更新你的飞书云端收藏。") {
+    if (accessCode) return Promise.resolve(accessCode);
+    if (accessPromise) return accessPromise;
+    accessHint.textContent = message;
+    accessHint.classList.toggle("invalid", message.includes("不正确"));
+    accessInput.value = "";
+    if (!accessDialog.open) accessDialog.showModal();
+    window.setTimeout(() => accessInput.focus(), 0);
+    accessPromise = new Promise((resolve, reject) => {
+      accessResolve = resolve;
+      accessReject = reject;
+    });
+    return accessPromise;
+  }
+
+  accessForm.addEventListener("submit", event => {
+    event.preventDefault();
+    const next = accessInput.value.trim();
+    if (!next) return;
+    accessCode = next;
+    try { localStorage.setItem(accessKey, next); } catch {}
+    accessDialog.close();
+    accessResolve?.(next);
+    accessPromise = undefined;
+    accessResolve = undefined;
+    accessReject = undefined;
+  });
+
+  function skipAccess() {
+    accessDialog.close();
+    accessReject?.(new Error("未连接云端，当前收藏仅保存在本机。"));
+    accessPromise = undefined;
+    accessResolve = undefined;
+    accessReject = undefined;
+  }
+
+  byId("skipAccessBtn").addEventListener("click", skipAccess);
+  accessDialog.addEventListener("cancel", event => {
+    event.preventDefault();
+    skipAccess();
+  });
 
   function pending() {
     return Boolean(base && snapshot() !== base.snapshot);
@@ -55,13 +112,22 @@ export function createCollectionSync({ getModules, setModules, defaultModules, i
     byId("cloudNoticeText").textContent = banner;
   }
 
-  async function request(method, body) {
+  async function request(method, body, canRetry = true) {
+    const code = accessCode || await requestAccess();
     const response = await axiosForBackend({
       url: "/api/collection", method, data: body,
+      headers: { "X-Shiguang-Access": code },
       timeout: 15_000,
       validateStatus: () => true
     });
-    if (response.status === 401 || response.status === 403) throw new Error("请在原来的飞书账号中打开导航，当前收藏保留在本机。");
+    if (response.status === 401 || response.status === 403) {
+      forgetAccess();
+      if (canRetry) {
+        await requestAccess("同步码不正确，请重新输入。");
+        return request(method, body, false);
+      }
+      throw new Error("同步码不正确，当前收藏保留在本机。");
+    }
     if (response.status === 400 || response.status === 413) throw new Error("收藏格式或大小超出飞书云端限制，本机收藏仍已保存。");
     if (response.status === 423) throw new Error("另一台设备正在保存，请稍后更新。");
     if (![200, 409].includes(response.status) || !Number.isSafeInteger(response.data?.revision)) {
@@ -157,7 +223,7 @@ export function createCollectionSync({ getModules, setModules, defaultModules, i
     if (remote?.revision !== 0) return;
     const modules = getModules();
     const count = modules.reduce((total, module) => total + module.sites.length, 0);
-    if (!confirm(`将本机的 ${modules.length} 个模块、${count} 个网站同步到云端？以后同一账号的其他设备也可读取这份收藏。`)) return;
+    if (!confirm(`将本机的 ${modules.length} 个模块、${count} 个网站同步到云端？以后输入同一同步码的其他设备也可读取这份收藏。`)) return;
     run(async () => {
       await send(0);
       if (!conflict && remote.revision) notify("已开启跨设备同步");

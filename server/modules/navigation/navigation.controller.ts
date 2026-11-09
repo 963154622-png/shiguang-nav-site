@@ -1,17 +1,20 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { Body, Controller, Get, Put, Req, Res, UnauthorizedException } from '@nestjs/common';
-import { NeedLogin } from '@lark-apaas/fullstack-nestjs-core';
 import type { Request, Response } from 'express';
 import { pack, validModules } from './collection';
 import { NavigationService } from './navigation.service';
 
 @Controller('api/collection')
-@NeedLogin()
 export class NavigationController {
   constructor(private readonly navigation: NavigationService) {}
 
   private authorize(request: Request, response: Response) {
-    const owner = process.env.NAV_OWNER_ID;
-    if (!owner || request.userContext?.userId !== owner) throw new UnauthorizedException();
+    const expected = process.env.NAV_ACCESS_KEY;
+    const supplied = request.header('x-shiguang-access');
+    if (!expected || !supplied) throw new UnauthorizedException();
+    const expectedHash = createHash('sha256').update(expected, 'utf8').digest();
+    const suppliedHash = createHash('sha256').update(supplied, 'utf8').digest();
+    if (!timingSafeEqual(expectedHash, suppliedHash)) throw new UnauthorizedException();
     response.set('cache-control', 'private, no-store');
   }
 

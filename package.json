@@ -54,6 +54,7 @@
     "@hookform/resolvers": "^5.2.2",
     "@lark-apaas/client-toolkit": "^1.2.82",
     "@lark-apaas/coding-preset-vite-react": "^1.0.30",
+    "@lark-apaas/fullstack-cli": "^1.1.71",
     "@lark-apaas/fullstack-presets": "^1.1.25",
     "@nestjs/cli": "^10.4.9",
     "@radix-ui/react-accordion": "^1.2.12",

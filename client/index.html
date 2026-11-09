@@ -106,6 +106,21 @@
       </form>
     </dialog>
 
+    <dialog id="accessDialog" aria-labelledby="accessDialogTitle">
+      <form id="accessForm" class="dialog-card compact">
+        <div class="dialog-heading">
+          <div><p>跨设备同步</p><h2 id="accessDialogTitle">输入同步码</h2></div>
+        </div>
+        <p class="access-copy">新设备首次输入一次即可。同步码只保存在当前浏览器，不需要登录任何账号。</p>
+        <label>同步码<input id="accessCodeInput" type="password" required autocomplete="off" maxlength="64" placeholder="请输入同步码" aria-describedby="accessCodeHint" /></label>
+        <p class="field-hint access-error" id="accessCodeHint" role="alert">用于安全读取和更新你的飞书云端收藏。</p>
+        <div class="dialog-actions">
+          <button class="text-button" id="skipAccessBtn" type="button">暂时只用本机</button>
+          <button class="primary-button" type="submit">连接云端</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="manageDialog" class="settings-dialog">
       <div class="dialog-card manage-card">
         <div class="dialog-heading"><h2>设置</h2><button class="close-button" id="closeManageBtn" type="button" aria-label="关闭">×</button></div>
@@ -140,7 +155,7 @@
             <div class="settings-choice" id="settingsThemeChoice"><button data-theme="light" type="button">☀ 浅色</button><button data-theme="system" type="button">◐ 跟随系统</button><button data-theme="dark" type="button">☾ 深色</button></div>
           </section>
           <section class="setting-panel" data-settings-panel="data" hidden>
-            <div class="setting-title"><span>☁</span><div><h3>飞书云端收藏</h3><p>在飞书内打开即可同步模块、网址、简介、图标和排序。</p></div></div>
+            <div class="setting-title"><span>☁</span><div><h3>飞书云端收藏</h3><p>输入同步码后，可在任意联网设备同步模块、网址、简介、图标和排序。</p></div></div>
             <p class="settings-hint cloud-status" id="cloudStatus" role="status">正在检查云端收藏…</p>
             <div class="manage-actions">
               <button class="soft-button settings-action" id="settingsRefreshCloudBtn" type="button">更新数据</button>
