@@ -49,6 +49,6 @@ export class NavigationController {
     const collection = result.collection;
     return result.conflict
       ? response.status(409).json(collection)
-      : response.json({ revision: collection.revision, updatedAt: collection.updatedAt });
+      : response.json(collection);
   }
 }
