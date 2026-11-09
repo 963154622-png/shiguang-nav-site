@@ -69,7 +69,13 @@ export function validModules(value: unknown): value is NavModule[] {
   return value.every(module => {
     if (!module || !id(module.id, moduleIds) || !text(module.name, 200) ||
         !module.name.trim() || !Array.isArray(module.sites)) return false;
-    if (module.icon != null && !text(module.icon, 12) &&
+    // Module icons can be a short text/emoji, one of the built-in line icons
+    // (stored as `icon:<name>`), or a compact uploaded PNG.  The previous
+    // 12-character limit rejected the line-icon names (for example
+    // `icon:folder-line`), which made an otherwise valid collection fail with
+    // “收藏格式不符合要求” as soon as a user changed a module icon.
+    if (module.icon != null &&
+        !(text(module.icon, 64) && (!module.icon.startsWith('icon:') || /^icon:[a-z-]+$/.test(module.icon))) &&
         !(text(module.icon, 16_000) && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(module.icon))) return false;
     return module.sites.every(site => site && id(site.id, siteIds) && siteIds.size <= 4000 &&
       text(site.name, 200) && site.name.trim() && link(site.url) &&
