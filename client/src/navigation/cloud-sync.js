@@ -206,9 +206,15 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
         if (showFeedback) notify("云端还没有收藏");
         return;
       }
-      // Older cloud snapshots contain modules only. Preserve the current device's
-      // appearance during the one-time migration, then sync the full collection.
-      if (!Object.hasOwn(remote, "brandName") && !Object.hasOwn(remote, "wallpaper")) {
+      // Older cloud snapshots contain modules only. If this device already has a
+      // remembered local revision, migrate its full appearance in the same write;
+      // otherwise preserve the current device's appearance until the owner edits it.
+      const legacyRemote = !Object.hasOwn(remote, "brandName") && !Object.hasOwn(remote, "wallpaper");
+      if (legacyRemote && base?.revision === remote.revision && snapshot() !== base.snapshot) {
+        await send(remote.revision);
+        return;
+      }
+      if (legacyRemote) {
         remote = { ...getCollection(), ...remote };
       }
       const local = snapshot();
