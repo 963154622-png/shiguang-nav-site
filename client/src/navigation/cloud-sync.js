@@ -258,6 +258,11 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
       } else if (!conflict && (base ? local === base.snapshot : local === defaults)) {
         if (isEditing()) return;
         adopt(remote);
+      } else if (remote.revision > (base?.revision || 0)) {
+        // Feishu is the source of truth across devices. When another device
+        // has already advanced the cloud revision, adopt it automatically.
+        if (isEditing()) return;
+        adopt(remote);
       } else {
         conflict = true;
       }
@@ -335,6 +340,14 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
       window.addEventListener("online", () => refresh());
       document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
       setInterval(() => { if (!document.hidden) refresh(); }, 20_000);
+      // Keep the cloud copy current without creating revisions when nothing
+      // changed. Local edits still use the short debounce above; this is the
+      // periodic safety net for tabs that remain open for a long time.
+      setInterval(() => {
+        if (document.hidden) return;
+        if (conflict) refresh();
+        else if (pending()) syncNow();
+      }, 300_000);
     }
   };
 }
