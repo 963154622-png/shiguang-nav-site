@@ -144,7 +144,8 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
       }
       throw new Error("同步码不正确，当前收藏保留在本机。");
     }
-    if (response.status === 400 || response.status === 413) throw new Error("收藏格式或大小超出飞书云端限制，本机收藏仍已保存。");
+    if (response.status === 400) throw new Error("收藏格式不符合要求，本机收藏仍已保存。");
+    if (response.status === 413) throw new Error("品牌图片或壁纸过大，无法写入飞书云端。请重新上传图片，系统会自动压缩后再同步。");
     if (response.status === 423) throw new Error("另一台设备正在保存，请稍后更新。");
     if (![200, 409].includes(response.status) || !Number.isSafeInteger(response.data?.revision)) {
       throw new Error("暂时无法连接飞书，当前收藏保留在本机。");

@@ -967,7 +967,7 @@ function setBrandImageDraft(image) {
   $("#saveBrandBtn").disabled = false;
   $("#brandImageHint").textContent = pendingBrandImage
     ? "图片已就绪，点击「保存品牌」应用。"
-    : "支持 PNG、JPG、WebP 和 GIF，图片保存在当前浏览器。";
+    : "支持 PNG、JPG、WebP 和 GIF，品牌图片会自动压缩后同步。";
   renderBrandMark($("#brandPreview"), $("#brandIconInput").value.trim(), pendingBrandImage);
 }
 
@@ -990,7 +990,10 @@ $("#brandImageInput").addEventListener("change", async event => {
   $("#saveBrandBtn").disabled = true;
   $("#brandImageHint").textContent = "正在处理图片…";
   try {
-    const image = await compressImage(file, { max: 256, type: "image/png" });
+    // Brand marks render at a very small size. Keep them compact so the full
+    // appearance snapshot can always fit alongside a custom wallpaper.
+    const image = await compressImage(file, { max: 96, type: "image/webp", quality: .65 });
+    if (image.length > 70_000) throw new Error("Brand image too large");
     if (request === brandImageRequest) setBrandImageDraft(image);
   } catch {
     if (request !== brandImageRequest) return;
@@ -1013,7 +1016,7 @@ $("#saveBrandBtn").addEventListener("click", () => {
   applyContent();
 });
 
-async function compressImage(file, { max = 1800, type = "image/jpeg" } = {}) {
+async function compressImage(file, { max = 1800, type = "image/jpeg", quality = .8 } = {}) {
   const source = await new Promise((resolve,reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
   const image = await new Promise((resolve,reject) => { const item = new Image(); item.onload = () => resolve(item); item.onerror = reject; item.src = source; });
   const scale = Math.min(1, max / Math.max(image.width,image.height));
@@ -1021,7 +1024,7 @@ async function compressImage(file, { max = 1800, type = "image/jpeg" } = {}) {
   canvas.width = Math.max(1, Math.round(image.width * scale));
   canvas.height = Math.max(1, Math.round(image.height * scale));
   canvas.getContext("2d").drawImage(image,0,0,canvas.width,canvas.height);
-  return canvas.toDataURL(type, .8);
+  return canvas.toDataURL(type, quality);
 }
 
 $("#wallpaperPresets").innerHTML = Object.entries(wallpaperPresets).map(([id, preset]) =>
