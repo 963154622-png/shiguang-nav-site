@@ -81,10 +81,10 @@
         <div class="dialog-heading"><h2 id="siteDialogTitle">添加网站</h2><button class="close-button" type="button" data-close-dialog="siteDialog" aria-label="关闭">×</button></div>
         <input type="hidden" id="siteId" />
         <label>网站地址<span class="url-row"><input id="siteUrl" required inputmode="url" placeholder="example.com" /><button id="detectBtn" type="button">自动识别</button></span></label>
-        <p class="detect-status" id="detectStatus">输入网址后，将自动尝试识别名称和图标。</p>
+        <p class="detect-status" id="detectStatus">输入网址后，将自动尝试识别名称、简介和图标。</p>
         <label>网站名称<input id="siteName" required maxlength="30" placeholder="例如：少数派" /></label>
-        <label>网站简介（选填）<input id="siteDescription" maxlength="80" placeholder="例如：代码托管与开源协作" aria-describedby="siteDescriptionHint" /></label>
-        <p class="field-hint" id="siteDescriptionHint">鼠标悬停在网站入口时显示。留空时只显示域名。</p>
+        <label>网站简介（自动识别，可修改）<input id="siteDescription" maxlength="80" placeholder="将自动读取网页简介，也可手动修改" aria-describedby="siteDescriptionHint" /></label>
+        <p class="field-hint" id="siteDescriptionHint">输入网址后自动尝试读取网页描述；鼠标悬停在网站入口时显示。</p>
         <label>网站图标<span class="favicon-row"><span class="favicon-preview"><img id="faviconPreview" alt="" /><b id="faviconFallback">网</b></span><input id="siteFavicon" inputmode="url" placeholder="可粘贴图标图片网址，也可留空" /></span></label>
         <label>所属模块<select id="siteModule" required></select></label>
         <label id="newModuleField" hidden>新模块名称<input id="newModuleName" maxlength="20" placeholder="例如：设计灵感" /></label>

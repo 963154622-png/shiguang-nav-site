@@ -112,6 +112,7 @@ let currentMatches = [];
 let draggedSite = null;
 let detectController = null;
 let lastAutoName = "";
+let lastAutoDescription = "";
 let toastTimer;
 let tooltipTimer;
 let tooltipAnchor;
@@ -407,8 +408,9 @@ function openSiteDialog(moduleId, siteId = null) {
   $("#siteUrl").setCustomValidity("");
   $("#siteId").value = siteId || "";
   $("#siteDialogTitle").textContent = siteId ? "编辑网站" : "添加网站";
-  $("#detectStatus").textContent = "输入网址后，将自动尝试识别名称和图标。";
+  $("#detectStatus").textContent = "输入网址后，将自动尝试识别名称、简介和图标。";
   lastAutoName = "";
+  lastAutoDescription = "";
   if (siteId) {
     const found = findSite(siteId);
     if (!found) return;
@@ -453,8 +455,13 @@ async function detectMetadata() {
     $("#siteName").value = guessed;
     lastAutoName = guessed;
   }
+  const suggestedDescription = descriptionOf({ url: normalized });
+  if (!$("#siteDescription").value.trim() || $("#siteDescription").value === lastAutoDescription) {
+    $("#siteDescription").value = suggestedDescription;
+    lastAutoDescription = suggestedDescription;
+  }
   updateFaviconPreview();
-  $("#detectStatus").textContent = "正在尝试读取网页名称和图标…";
+  $("#detectStatus").textContent = "正在尝试读取网页名称、简介和图标…";
   $("#detectStatus").classList.add("loading");
   detectController?.abort();
   const controller = new AbortController();
@@ -466,14 +473,23 @@ async function detectMetadata() {
     const html = await response.text();
     if (detectController !== controller || $("#siteUrl").value !== normalized) return;
     const title = new DOMParser().parseFromString(html, "text/html").querySelector("title")?.textContent.trim();
+    const documentRoot = new DOMParser().parseFromString(html, "text/html");
+    const metaDescription = documentRoot.querySelector('meta[name="description" i]')?.getAttribute("content")?.trim()
+      || documentRoot.querySelector('meta[property="og:description" i]')?.getAttribute("content")?.trim();
     if (title && (!$("#siteName").value.trim() || $("#siteName").value === lastAutoName)) {
       const clean = title.split(/[|｜—–-]/)[0].trim().slice(0, 30);
       if (clean) { $("#siteName").value = clean; lastAutoName = clean; }
     }
-    $("#detectStatus").textContent = "已识别；名称和图标仍可手动修改。";
+    if (metaDescription && (!$("#siteDescription").value.trim() || $("#siteDescription").value === lastAutoDescription)) {
+      $("#siteDescription").value = metaDescription.slice(0, 80);
+      lastAutoDescription = $("#siteDescription").value;
+    }
+    $("#detectStatus").textContent = "已识别；名称、简介和图标仍可手动修改。";
   } catch {
     if (detectController !== controller || $("#siteUrl").value !== normalized) return;
-    $("#detectStatus").textContent = "已根据网址生成名称和图标，可继续手动修改。";
+    $("#detectStatus").textContent = suggestedDescription
+      ? "已根据网址生成名称、简介和图标，可继续手动修改。"
+      : "已根据网址生成名称和图标，简介可手动填写。";
   } finally {
     clearTimeout(timer);
     if (detectController === controller) {
@@ -488,7 +504,7 @@ $("#detectBtn").addEventListener("click", detectMetadata);
 $("#siteUrl").addEventListener("input", () => {
   $("#siteUrl").setCustomValidity("");
   $("#detectStatus").classList.remove("loading");
-  $("#detectStatus").textContent = "输入网址后，将自动尝试识别名称和图标。";
+  $("#detectStatus").textContent = "输入网址后，将自动尝试识别名称、简介和图标。";
 });
 $("#siteUrl").addEventListener("blur", () => { if (!$("#siteId").value) detectMetadata(); });
 $("#siteName").addEventListener("input", updateFaviconPreview);
