@@ -1264,7 +1264,11 @@ renderModules();
 cloudSync = createCollectionSync({
   getCollection: () => data,
   setCollection(collection) {
-    const next = { ...data, ...collection };
+    // Cloud reads are authoritative for an idle device. Start from defaults
+    // instead of merging into stale local fields that may no longer exist in
+    // the cloud snapshot, otherwise the tab appears dirty and can re-upload
+    // old data on the next refresh.
+    const next = { ...clone(defaultData), ...collection };
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { return false; }
     data = next;
     editingModules.clear();
