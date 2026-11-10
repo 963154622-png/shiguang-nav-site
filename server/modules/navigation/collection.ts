@@ -9,6 +9,13 @@ type Site = {
   color?: string;
 };
 
+const blockedHosts = new Set([
+  'xn--4gq62f52gdss.com',
+]);
+
+const blockedContentPattern =
+  /(?:\bvpn\b|\bproxy\b|\bclash\b|\bv2ray\b|shadowsocks|翻墙|科学上网|机场订阅|节点订阅|代理节点)/iu;
+
 export type NavModule = {
   id: string;
   name: string;
@@ -76,6 +83,32 @@ function link(value: unknown): boolean {
   }
 }
 
+export function allowedSite(site: Site): boolean {
+  let hostname: string;
+  try {
+    hostname = new URL(site.url).hostname.toLowerCase().replace(/[.]$/, '');
+  } catch {
+    return false;
+  }
+  const blockedHost = [...blockedHosts].some(
+    host => hostname === host || hostname.endsWith(`.${host}`),
+  );
+  if (blockedHost) return false;
+  return !blockedContentPattern.test(
+    `${site.name}\n${site.description ?? ''}\n${hostname}`,
+  );
+}
+
+export function sanitizeCollection(data: NavCollectionData): NavCollectionData {
+  return {
+    ...data,
+    modules: data.modules.map(module => ({
+      ...module,
+      sites: module.sites.filter(allowedSite),
+    })),
+  };
+}
+
 export function validModules(value: unknown): value is NavModule[] {
   if (!Array.isArray(value) || value.length > 250) return false;
   const moduleIds = new Set<string>();
@@ -93,6 +126,7 @@ export function validModules(value: unknown): value is NavModule[] {
         !(text(module.icon, 16_000) && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(module.icon))) return false;
     return module.sites.every(site => site && id(site.id, siteIds) && siteIds.size <= 4000 &&
       text(site.name, 200) && site.name.trim() && link(site.url) &&
+      allowedSite(site) &&
       (site.description == null || text(site.description, 1000)) &&
       (site.favicon == null || text(site.favicon, 200_000)) &&
       (site.color == null || text(site.color, 64)));
@@ -159,7 +193,15 @@ export function unpack(data: string): NavCollectionData {
   if (!data.startsWith(prefix) || data.length > encodedLimit) throw new Error('Invalid snapshot');
   const raw = gunzipSync(Buffer.from(data.slice(prefix.length), 'base64url'), { maxOutputLength: rawLimit });
   const parsed: unknown = JSON.parse(raw.toString('utf8'));
-  if (validModules(parsed)) return { modules: parsed };
-  if (!validCollection(parsed)) throw new Error('Invalid snapshot');
-  return parsed;
+  if (Array.isArray(parsed)) {
+    const sanitized: NavCollectionData = sanitizeCollection({ modules: parsed as NavModule[] });
+    if (!validModules(sanitized.modules)) throw new Error('Invalid snapshot');
+    return sanitized;
+  }
+  if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as NavCollectionData).modules)) {
+    throw new Error('Invalid snapshot');
+  }
+  const sanitized: NavCollectionData = sanitizeCollection(parsed as NavCollectionData);
+  if (!validCollection(sanitized)) throw new Error('Invalid snapshot');
+  return sanitized;
 }

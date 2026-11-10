@@ -8,6 +8,8 @@ const PREVIOUS_STORAGE_KEY = "shiguang-nav-data-v2";
 const OLD_STORAGE_KEY = "shiguang-nav-data-v1";
 const THEME_KEY = "shiguang-nav-theme-v1";
 const ENGINE_KEY = "shiguang-nav-engine-v1";
+const BLOCKED_HOSTS = new Set(["xn--4gq62f52gdss.com"]);
+const BLOCKED_CONTENT = /(?:\bvpn\b|\bproxy\b|\bclash\b|\bv2ray\b|shadowsocks|翻墙|科学上网|机场订阅|节点订阅|代理节点)/iu;
 
 const engines = [
   { id: "google", name: "Google", url: "https://www.google.com/search?q=" },
@@ -135,11 +137,11 @@ let cloudSync;
 function loadData() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (Array.isArray(saved?.modules)) return { ...clone(defaultData), ...saved };
+    if (Array.isArray(saved?.modules)) return sanitizeData({ ...clone(defaultData), ...saved });
     const previous = JSON.parse(localStorage.getItem(PREVIOUS_STORAGE_KEY));
-    if (Array.isArray(previous?.modules)) return { ...clone(defaultData), ...previous, layout: 1 };
+    if (Array.isArray(previous?.modules)) return sanitizeData({ ...clone(defaultData), ...previous, layout: 1 });
     const old = JSON.parse(localStorage.getItem(OLD_STORAGE_KEY));
-    if (Array.isArray(old?.modules)) return { ...clone(defaultData), modules: old.modules };
+    if (Array.isArray(old?.modules)) return sanitizeData({ ...clone(defaultData), modules: old.modules });
   } catch {}
   return clone(defaultData);
 }
@@ -188,6 +190,26 @@ function normalizeUrl(value) {
 
 function domainOf(url) {
   try { return new URL(normalizeUrl(url)).hostname.replace(/^www\./, ""); } catch { return url; }
+}
+
+function isAllowedSite(site) {
+  const url = normalizeUrl(site?.url || "");
+  if (!url) return false;
+  const hostname = new URL(url).hostname.toLowerCase().replace(/[.]$/, "");
+  if ([...BLOCKED_HOSTS].some(host => hostname === host || hostname.endsWith(`.${host}`))) return false;
+  return !BLOCKED_CONTENT.test(`${site?.name || ""}\n${site?.description || ""}\n${hostname}`);
+}
+
+function sanitizeData(collection) {
+  return {
+    ...collection,
+    modules: Array.isArray(collection?.modules)
+      ? collection.modules.map(module => ({
+          ...module,
+          sites: Array.isArray(module?.sites) ? module.sites.filter(isAllowedSite) : []
+        }))
+      : []
+  };
 }
 
 function faviconFor(url) {
@@ -723,6 +745,16 @@ $("#siteForm").addEventListener("submit", event => {
     $("#siteUrl").reportValidity();
     return;
   }
+  const candidate = {
+    name,
+    url,
+    description: $("#siteDescription").value.trim()
+  };
+  if (!isAllowedSite(candidate)) {
+    $("#siteUrl").setCustomValidity("该网址可能包含代理、VPN 或其他不合规内容，无法添加。");
+    $("#siteUrl").reportValidity();
+    return;
+  }
   if (!name) return $("#siteName").focus();
   let targetModule;
   if ($("#siteModule").value === "__new__") {
@@ -1238,8 +1270,12 @@ $("#importInput").addEventListener("change", async event => {
         typeof site.url === "string" && normalizeUrl(site.url))
     );
     if (!valid) throw new Error("invalid backup");
+    const sanitized = sanitizeData(parsed);
+    const removed = parsed.modules.reduce((total, module) => total + module.sites.length, 0)
+      - sanitized.modules.reduce((total, module) => total + module.sites.length, 0);
+    if (removed > 0) throw new Error("unsafe backup");
     const previous = data;
-    data = { ...clone(defaultData), ...parsed };
+    data = { ...clone(defaultData), ...sanitized };
     if (!saveData("备份已导入")) {
       data = previous;
       return;
@@ -1268,7 +1304,7 @@ cloudSync = createCollectionSync({
     // instead of merging into stale local fields that may no longer exist in
     // the cloud snapshot, otherwise the tab appears dirty and can re-upload
     // old data on the next refresh.
-    const next = { ...clone(defaultData), ...collection };
+    const next = sanitizeData({ ...clone(defaultData), ...collection });
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { return false; }
     data = next;
     editingModules.clear();

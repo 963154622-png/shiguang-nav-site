@@ -81,6 +81,7 @@
         <div class="dialog-heading"><h2 id="siteDialogTitle">添加网站</h2><button class="close-button" type="button" data-close-dialog="siteDialog" aria-label="关闭">×</button></div>
         <input type="hidden" id="siteId" />
         <label>网站地址<span class="url-row"><input id="siteUrl" required inputmode="url" placeholder="example.com" /><button id="detectBtn" type="button">自动识别</button></span></label>
+        <p class="detect-status">请仅收藏合法合规网站；代理、VPN 等高风险链接无法保存或同步。</p>
         <p class="detect-status" id="detectStatus">输入网址后，将自动尝试识别名称、简介和图标。</p>
         <label>网站名称<input id="siteName" required maxlength="30" placeholder="例如：少数派" /></label>
         <label>网站简介（自动识别，可修改）<input id="siteDescription" maxlength="80" placeholder="将自动读取网页简介，也可手动修改" aria-describedby="siteDescriptionHint" /></label>
