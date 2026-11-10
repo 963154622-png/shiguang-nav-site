@@ -35,7 +35,7 @@ async function read(env) {
   const rows = await supabase(env, "GET", "?id=eq.1&select=id,revision,updated_at,data");
   const row = rows[0];
   return row
-    ? { ...(row.data || { modules: [] }), revision: Number(row.revision) || 0, updatedAt: row.updated_at || "" }
+    ? { modules: [], ...(row.data || {}), revision: Number(row.revision) || 0, updatedAt: row.updated_at || "" }
     : { modules: [], revision: 0, updatedAt: "" };
 }
 
