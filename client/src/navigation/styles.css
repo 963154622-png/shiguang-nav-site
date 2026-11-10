@@ -99,6 +99,9 @@ body[data-wallpaper="custom"] .page-tint { background: rgba(245,245,247,.65); }
 .workspace { padding-bottom: 54px; }
 .collection-actions { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 15px; }
 #refreshCloudBtn { border-color: var(--line-soft); border-radius: 999px; padding: 8px 12px; }
+.needs-action { border-color: rgba(245, 158, 11, .7) !important; box-shadow: 0 0 0 3px rgba(245, 158, 11, .14) !important; animation: sync-reminder 1.8s ease-in-out infinite; }
+.needs-action::after { content: ""; width: 6px; height: 6px; margin-left: 7px; display: inline-block; border-radius: 50%; background: #f59e0b; vertical-align: middle; }
+@keyframes sync-reminder { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-1px); } }
 .cloud-notice { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--glass); }
 .cloud-notice p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .cloud-notice button { flex: 0 0 auto; }

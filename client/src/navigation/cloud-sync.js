@@ -2,6 +2,7 @@ import axios from "axios";
 
 export function createCollectionSync({ getCollection, setCollection, defaultCollection, isEditing, notify, openSettings }) {
   const key = "shiguang-nav-cloud-v1";
+  const dirtyKey = "shiguang-nav-cloud-dirty-v1";
   const accessKey = "shiguang-nav-access-v1";
   const byId = id => document.getElementById(id);
   const snapshot = () => JSON.stringify(getCollection());
@@ -31,12 +32,20 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
   let busy = false;
   let conflict = false;
   let error = "";
-  let localTimer;
-  let lastWriteAt = 0;
   let localDirty = false;
+  try { localDirty = localStorage.getItem(dirtyKey) === "1"; } catch {}
+  let remoteUpdateAvailable = false;
   let changedDuringAction = false;
 
   const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+
+  function markLocalDirty(value) {
+    localDirty = value;
+    try {
+      if (value) localStorage.setItem(dirtyKey, "1");
+      else localStorage.removeItem(dirtyKey);
+    } catch {}
+  }
 
   function mergeList(baseList = [], localList = [], remoteList = []) {
     const baseMap = new Map(baseList.map(item => [item.id, item]));
@@ -161,10 +170,6 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
     skipAccess();
   });
 
-  function pending() {
-    return Boolean(base && snapshot() !== base.snapshot);
-  }
-
   function remember(result, savedSnapshot) {
     base = { revision: result.revision, snapshot: savedSnapshot, updatedAt: result.updatedAt };
     try { localStorage.setItem(key, JSON.stringify(base)); } catch {}
@@ -247,14 +252,20 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
     enable.hidden = !fresh;
     useCloud.hidden = useLocal.hidden = !conflict;
     [enable, useCloud, useLocal].forEach(button => { button.disabled = busy; });
+    syncButtons.forEach(button => button.classList.toggle("needs-action", localDirty && !busy));
+    refreshButtons.forEach(button => button.classList.toggle("needs-action", remoteUpdateAvailable && !busy));
     const conflictText = "本机和云端都有不同的收藏。可先导出本机备份，再选择要保留的版本。";
+    const actionText = localDirty && remoteUpdateAvailable
+      ? "本机和云端都有改动：请先更新数据，再确认需要同步的本机修改。"
+      : remoteUpdateAvailable ? "云端有新版本，点击“更新数据”后再继续编辑。"
+      : localDirty ? "本机有改动，点击“同步到云端”保存到其他设备。" : "";
     status.textContent = busy ? "正在同步…"
       : error || (conflict ? conflictText
         : fresh ? "云端还没有收藏。请在收藏最全的设备上启用同步。"
-        : pending() ? "本机已保存，等待同步到云端。"
-        : base ? `已同步 · ${formatTime(base.updatedAt)}`
-        : "正在检查云端收藏…");
+        : actionText || (base ? `已同步 · ${formatTime(base.updatedAt)}`
+        : "正在检查云端收藏…"));
     const banner = conflict ? conflictText : error
+      || actionText
       || (fresh ? "首次使用：将收藏最全的设备同步到云端，其他设备即可读取。" : "");
     notice.hidden = !banner;
     byId("cloudNoticeText").textContent = banner;
@@ -323,8 +334,8 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
       return;
     }
     remember(remote, sent);
-    lastWriteAt = Date.now();
-    localDirty = snapshot() !== sent;
+    markLocalDirty(snapshot() !== sent);
+    remoteUpdateAvailable = false;
     conflict = false;
     if (snapshot() !== sent) changedDuringAction = true;
   }
@@ -339,7 +350,8 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
     // Remember the exact post-adoption snapshot so an idle device does not
     // immediately look dirty and upload its stale pre-cloud shape.
     remember(result, snapshot());
-    localDirty = false;
+    markLocalDirty(false);
+    remoteUpdateAvailable = false;
     conflict = false;
   }
 
@@ -363,7 +375,7 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
     }
   }
 
-  function refresh(showFeedback = false) {
+  function refresh(showFeedback = false, applyRemote = false) {
     return run(async () => {
       ({ result: remote } = await request("GET"));
       if (!remote.revision) {
@@ -371,67 +383,57 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
         if (showFeedback) notify("云端还没有收藏");
         return;
       }
-      // Older cloud snapshots contain modules only. If this device already has a
-      // remembered local revision, migrate its full appearance in the same write;
-      // otherwise preserve the current device's appearance until the owner edits it.
+      // Older cloud snapshots contain modules only. Fill their missing appearance
+      // locally for display, but never migrate them with an automatic write.
       const legacyRemote = !Object.hasOwn(remote, "brandName") && !Object.hasOwn(remote, "wallpaper");
-      if (legacyRemote && base?.revision === remote.revision && snapshot() !== base.snapshot) {
-        await send(remote.revision);
-        return;
-      }
       if (legacyRemote) {
         remote = { ...getCollection(), ...remote };
       }
       const local = snapshot();
-      if (local === JSON.stringify(resultData(remote))) {
+      const incoming = JSON.stringify(resultData(remote));
+      if (applyRemote) {
+        if (localDirty && local !== incoming &&
+            !confirm("本机还有未同步的修改。更新数据会用云端版本替换本机内容，确定继续吗？")) {
+          remoteUpdateAvailable = remote.revision !== base?.revision;
+          return;
+        }
         adopt(remote);
-      } else if (base?.revision === remote.revision && local !== base.snapshot) {
-        // A stale localStorage snapshot from a previous session must never
-        // overwrite the cloud copy merely because it differs from base. Only
-        // a real edit made in this open tab is allowed to write.
-        if (localDirty) await send(base.revision);
-        else adopt(remote);
-      } else if (!conflict && (base ? local === base.snapshot : local === defaults)) {
-        if (isEditing()) return;
+        if (showFeedback) notify("已更新为云端最新版本");
+      } else if (local === incoming) {
         adopt(remote);
-      } else if (remote.revision > (base?.revision || 0)) {
-        // When this device is actively editing, its current changes win the
-        // race and are written on top of the newer cloud revision.  Idle
-        // devices keep the cloud copy as the source of truth and adopt it.
-        if (isEditing()) await send(remote.revision);
-        else adopt(remote);
+      } else if (!base && local === defaults && !isEditing()) {
+        // A genuinely new device may safely start from the cloud. Existing
+        // devices only receive a reminder and must click Update explicitly.
+        adopt(remote);
+      } else if (base?.revision !== remote.revision) {
+        remoteUpdateAvailable = true;
+        if (showFeedback) notify("云端有新版本，请点击“更新数据”");
       } else {
-        // A stale replica or a simultaneous write can leave the revision
-        // ordering temporarily ambiguous. Treat it like any other merge:
-        // the active editor is retried on top of the latest server revision,
-        // while an idle device adopts the cloud copy.
-        if (localDirty || isEditing()) await send(remote.revision);
-        else adopt(remote);
+        if (local === base.snapshot) markLocalDirty(false);
+        remoteUpdateAvailable = false;
       }
-      if (showFeedback && !conflict) notify("收藏已更新");
     });
   }
 
   function localChanged() {
-    localDirty = true;
+    markLocalDirty(true);
     render();
-    if (!base || conflict || !pending()) return;
-    if (busy) {
-      changedDuringAction = true;
-      return;
-    }
-    clearTimeout(localTimer);
-    const waitForWrite = Math.max(350, 8_000 - (Date.now() - lastWriteAt));
-    localTimer = setTimeout(() => refresh(), waitForWrite);
+    // Changes are deliberately local until the user clicks Sync. Background
+    // checks may announce a cloud update, but never write or replace data.
   }
 
   // A manual sync is an explicit "upload this device's current collection"
   // action. Fetch the latest revision first so the write remains conflict-safe.
   function syncNow() {
     return run(async () => {
-      localDirty = true;
       ({ result: remote } = await request("GET"));
       const revision = Number.isSafeInteger(remote?.revision) ? remote.revision : 0;
+      const incoming = remote?.revision ? JSON.stringify(resultData(remote)) : "";
+      if (remote?.revision && base?.revision !== remote.revision && snapshot() !== incoming) {
+        remoteUpdateAvailable = true;
+        notify("云端有新版本，请先点击“更新数据”");
+        return;
+      }
       await send(revision);
       if (conflict) {
         notify("云端有更新版本，请先选择保留哪一份");
@@ -441,7 +443,7 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
     });
   }
 
-  for (const button of refreshButtons) button.addEventListener("click", () => refresh(true));
+  for (const button of refreshButtons) button.addEventListener("click", () => refresh(true, true));
   for (const button of syncButtons) button.addEventListener("click", syncNow);
   byId("cloudNoticeBtn").addEventListener("click", openSettings);
   enable.addEventListener("click", () => {
@@ -484,14 +486,12 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
       window.addEventListener("focus", () => { if (!document.hidden) refresh(); });
       window.addEventListener("online", () => refresh());
       document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
-      // Every five seconds we only perform change detection. `refresh()`
-      // compares the local snapshot with the remembered cloud revision and
-      // writes only when a real local edit is detected; unchanged tabs never
-      // issue a Feishu write.
+      // Background checks are read-only. They only light up Update when the
+      // cloud revision changes; writes happen exclusively after a button click.
       setInterval(() => {
         if (document.hidden) return;
         refresh();
-      }, 5_000);
+      }, 15_000);
     }
   };
 }
