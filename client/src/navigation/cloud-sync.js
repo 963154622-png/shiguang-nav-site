@@ -34,6 +34,84 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
   let localTimer;
   let changedDuringAction = false;
 
+  const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+
+  function mergeList(baseList = [], localList = [], remoteList = []) {
+    const baseMap = new Map(baseList.map(item => [item.id, item]));
+    const localMap = new Map(localList.map(item => [item.id, item]));
+    const remoteMap = new Map(remoteList.map(item => [item.id, item]));
+    const ids = [...new Set([...baseList, ...localList, ...remoteList].map(item => item.id))];
+    const mergedMap = new Map();
+    for (const id of ids) {
+      const before = baseMap.get(id);
+      const local = localMap.get(id);
+      const remote = remoteMap.get(id);
+      const localChanged = !same(local, before);
+      const remoteChanged = !same(remote, before);
+      // The device currently writing wins when both sides changed the same
+      // entity. A deletion is treated as a change too.
+      const chosen = localChanged ? local : remoteChanged ? remote : before;
+      if (chosen) mergedMap.set(id, chosen);
+    }
+    const baseOrder = baseList.map(item => item.id);
+    const localOrder = localList.map(item => item.id);
+    const remoteOrder = remoteList.map(item => item.id);
+    const order = !same(localOrder, baseOrder) ? localOrder
+      : !same(remoteOrder, baseOrder) ? remoteOrder : baseOrder;
+    for (const id of ids) if (!order.includes(id)) order.push(id);
+    return order.map(id => mergedMap.get(id)).filter(Boolean);
+  }
+
+  function mergeModule(baseModule, localModule, remoteModule) {
+    const before = baseModule || {};
+    const local = localModule || {};
+    const remote = remoteModule || {};
+    const merged = { ...remote };
+    for (const key of Object.keys({ ...before, ...local, ...remote })) {
+      if (key === "sites" || key === "id") continue;
+      if (!same(local[key], before[key])) merged[key] = local[key];
+      else if (!same(remote[key], before[key])) merged[key] = remote[key];
+      else if (before[key] !== undefined) merged[key] = before[key];
+    }
+    merged.id = before.id || local.id || remote.id;
+    merged.sites = mergeList(before.sites, local.sites, remote.sites);
+    return merged;
+  }
+
+  function mergeCollections(before, local, remote) {
+    const merged = { ...remote };
+    for (const key of ["brandName", "brandIcon", "brandImage", "title", "subtitle", "wallpaper", "wallpaperPreset", "layout"]) {
+      if (!same(local[key], before?.[key])) merged[key] = local[key];
+      else if (same(remote[key], before?.[key])) merged[key] = before?.[key];
+    }
+    const baseModules = before?.modules || [];
+    const localModules = local?.modules || [];
+    const remoteModules = remote?.modules || [];
+    const baseMap = new Map(baseModules.map(item => [item.id, item]));
+    const localMap = new Map(localModules.map(item => [item.id, item]));
+    const remoteMap = new Map(remoteModules.map(item => [item.id, item]));
+    const moduleIds = [...new Set([...baseModules, ...localModules, ...remoteModules].map(item => item.id))];
+    const modules = [];
+    for (const id of moduleIds) {
+      const before = baseMap.get(id);
+      const localModule = localMap.get(id);
+      const remoteModule = remoteMap.get(id);
+      const localChanged = !same(localModule, before);
+      const remoteChanged = !same(remoteModule, before);
+      const chosen = localChanged ? localModule : remoteChanged ? remoteModule : before;
+      if (chosen) modules.push(mergeModule(before, localModule || chosen, remoteModule || chosen));
+    }
+    const baseOrder = baseModules.map(item => item.id);
+    const localOrder = localModules.map(item => item.id);
+    const remoteOrder = remoteModules.map(item => item.id);
+    const order = !same(localOrder, baseOrder) ? localOrder : !same(remoteOrder, baseOrder) ? remoteOrder : baseOrder;
+    for (const id of moduleIds) if (!order.includes(id)) order.push(id);
+    merged.modules = order.map(id => modules.find(item => item.id === id)).filter(Boolean);
+    return merged;
+  }
+
+  const wait = delay => new Promise(resolve => setTimeout(resolve, delay));
+
   function forgetAccess() {
     accessCode = "";
     try { localStorage.removeItem(accessKey); } catch {}
@@ -156,16 +234,27 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
     const code = accessCode || await requestAccess();
     const basePath = window.location.pathname.replace(/\/+$/, "");
     const csrf = document.cookie.split("; ").find(item => item.startsWith("suda-csrf-token="))?.slice("suda-csrf-token=".length) || "";
-    const response = await axios({
-      url: `${basePath}/api/collection`, method, data: body,
-      headers: {
-        "X-Shiguang-Access": code,
-        ...(csrf && { "X-Suda-Csrf-Token": csrf })
-      },
-      withCredentials: true,
-      timeout: 15_000,
-      validateStatus: () => true
-    });
+    let response;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        response = await axios({
+          url: `${basePath}/api/collection`, method, data: body,
+          headers: {
+            "X-Shiguang-Access": code,
+            ...(csrf && { "X-Suda-Csrf-Token": csrf })
+          },
+          withCredentials: true,
+          timeout: 15_000,
+          validateStatus: () => true
+        });
+      } catch (failure) {
+        if (attempt === 2) throw failure;
+        await wait(400 * (2 ** attempt) + Math.round(Math.random() * 250));
+        continue;
+      }
+      if (![429, 502, 503, 504].includes(response.status) || attempt === 2) break;
+      await wait(400 * (2 ** attempt) + Math.round(Math.random() * 250));
+    }
     if (response.status === 401 || response.status === 403) {
       forgetAccess();
       if (canRetry) {
@@ -176,6 +265,7 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
     }
     if (response.status === 400) throw new Error("收藏格式不符合要求，本机收藏仍已保存。");
     if (response.status === 413) throw new Error("品牌图片或壁纸过大，无法写入飞书云端。请重新上传图片，系统会自动压缩后再同步。");
+    if ([429, 502, 503, 504].includes(response.status)) throw new Error("飞书暂时繁忙，已自动重试；本机收藏仍已保存。");
     if (response.status === 423) throw new Error("另一台设备正在保存，请稍后更新。");
     if (![200, 409].includes(response.status) || !Number.isSafeInteger(response.data?.revision)) {
       throw new Error("暂时无法连接飞书，当前收藏保留在本机。");
@@ -183,7 +273,7 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
     return { conflict: response.status === 409, result: response.data };
   }
 
-  async function send(revision) {
+  async function send(revision, attempt = 0) {
     const sent = await snapshotForSync();
     const response = await request("PUT", { revision, ...JSON.parse(sent) });
     remote = response.result;
@@ -191,8 +281,14 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
       if (remote.revision && JSON.stringify(resultData(remote)) === sent) {
         remember(remote, sent);
         conflict = false;
+      } else if (remote.revision && attempt < 2) {
+        const before = base ? JSON.parse(base.snapshot) : defaultCollection;
+        const local = JSON.parse(sent);
+        const merged = mergeCollections(before, local, resultData(remote));
+        if (!setCollection(merged)) throw new Error("本机空间不足，无法合并云端更新。请先导出备份。");
+        return send(remote.revision, attempt + 1);
       } else {
-        conflict = Boolean(remote.revision);
+        conflict = false;
       }
       return;
     }

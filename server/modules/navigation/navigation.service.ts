@@ -40,27 +40,34 @@ export class NavigationService {
   private async feishu(stage: string, path: string, method: 'GET' | 'POST' | 'PUT', token?: string, body?: unknown): Promise<ApiResponse> {
     let response: Response | undefined;
     let data: ApiResponse | undefined;
-    try {
-      response = await fetch(api + path, {
-        method,
-        headers: {
-          'content-type': 'application/json; charset=utf-8',
-          ...(token && { authorization: `Bearer ${token}` }),
-        },
-        body: body == null ? undefined : JSON.stringify(body),
-        redirect: 'manual',
-        signal: AbortSignal.timeout(4500),
-      });
-      data = await response.json() as ApiResponse;
-    } catch {
-      this.logger.warn(`Feishu ${stage} network error ${response?.status ?? 0}`);
-      throw new ServiceUnavailableException('暂时无法连接飞书。');
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        response = await fetch(api + path, {
+          method,
+          headers: {
+            'content-type': 'application/json; charset=utf-8',
+            ...(token && { authorization: `Bearer ${token}` }),
+          },
+          body: body == null ? undefined : JSON.stringify(body),
+          redirect: 'manual',
+          signal: AbortSignal.timeout(4500),
+        });
+        data = await response.json() as ApiResponse;
+      } catch {
+        if (attempt === 2) {
+          this.logger.warn(`Feishu ${stage} network error ${response?.status ?? 0}`);
+          throw new ServiceUnavailableException('暂时无法连接飞书。');
+        }
+        await new Promise(resolve => setTimeout(resolve, 400 * (2 ** attempt)));
+        continue;
+      }
+      const retryable = [429, 500, 502, 503, 504].includes(response.status);
+      if (response.ok && data?.code === 0) return data;
+      if (!retryable || attempt === 2) break;
+      await new Promise(resolve => setTimeout(resolve, 400 * (2 ** attempt)));
     }
-    if (!response.ok || data?.code !== 0) {
-      this.logger.warn(`Feishu ${stage} rejected: HTTP ${response.status}, code ${data?.code ?? 0}`);
-      throw new ServiceUnavailableException('飞书暂时无法读写收藏。');
-    }
-    return data;
+    this.logger.warn(`Feishu ${stage} rejected: HTTP ${response?.status ?? 0}, code ${data?.code ?? 0}`);
+    throw new ServiceUnavailableException('飞书暂时无法读写收藏。');
   }
 
   private async accessToken() {
