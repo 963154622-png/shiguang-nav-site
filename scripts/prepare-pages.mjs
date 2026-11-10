@@ -3,7 +3,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const source = path.join(root, 'dist', 'client');
-const target = path.join(root, 'dist', 'pages');
+const target = path.join(root, 'public');
 
 await rm(target, { recursive: true, force: true });
 await mkdir(target, { recursive: true });
