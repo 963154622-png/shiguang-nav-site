@@ -61,7 +61,8 @@ export class NavigationService {
         await new Promise(resolve => setTimeout(resolve, 400 * (2 ** attempt)));
         continue;
       }
-      const retryable = [429, 500, 502, 503, 504].includes(response.status);
+      const retryable = [429, 500, 502, 503, 504].includes(response.status)
+        || [1254130, 1254290, 1254291, 1254607].includes(data?.code ?? -1);
       if (response.ok && data?.code === 0) return data;
       if (!retryable || attempt === 2) break;
       await new Promise(resolve => setTimeout(resolve, 400 * (2 ** attempt)));

@@ -32,6 +32,7 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
   let conflict = false;
   let error = "";
   let localTimer;
+  let lastWriteAt = 0;
   let changedDuringAction = false;
 
   const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
@@ -293,6 +294,7 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
       return;
     }
     remember(remote, sent);
+    lastWriteAt = Date.now();
     conflict = false;
     if (snapshot() !== sent) changedDuringAction = true;
   }
@@ -375,7 +377,8 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
       return;
     }
     clearTimeout(localTimer);
-    localTimer = setTimeout(() => refresh(), 350);
+    const waitForWrite = Math.max(350, 8_000 - (Date.now() - lastWriteAt));
+    localTimer = setTimeout(() => refresh(), waitForWrite);
   }
 
   // A manual sync is an explicit "upload this device's current collection"
@@ -441,7 +444,7 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
       setInterval(() => {
         if (document.hidden) return;
         if (conflict || !pending()) refresh();
-        else if (pending()) syncNow();
+        else if (pending() && Date.now() - lastWriteAt >= 8_000) syncNow();
       }, 5_000);
     }
   };
