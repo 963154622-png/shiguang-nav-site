@@ -141,7 +141,10 @@ export function applyPatch(base: NavCollectionData, patch: CollectionPatch): Nav
 }
 
 const rawLimit = 1_200_000;
-const encodedLimit = 240_000;
+// The packed snapshot is split across multiple Feishu records by the service,
+// so the overall collection can be larger than one Base cell while each chunk
+// remains comfortably below the per-cell limit.
+const encodedLimit = 900_000;
 const prefix = 'nav1:';
 
 export function pack(data: NavCollectionData): string | null {

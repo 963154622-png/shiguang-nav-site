@@ -276,7 +276,9 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
     const basePath = window.location.pathname.replace(/\/+$/, "");
     const csrf = document.cookie.split("; ").find(item => item.startsWith("suda-csrf-token="))?.slice("suda-csrf-token=".length) || "";
     let response;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    // The server already performs bounded Feishu retries. Keep one browser
+    // request so a delayed write cannot be duplicated by the client.
+    for (let attempt = 0; attempt < 1; attempt += 1) {
       try {
         response = await axios({
           url: `${basePath}/api/collection`, method, data: body,
@@ -285,15 +287,15 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
             ...(csrf && { "X-Suda-Csrf-Token": csrf })
           },
           withCredentials: true,
-          timeout: 15_000,
+          timeout: 65_000,
           validateStatus: () => true
         });
       } catch (failure) {
-        if (attempt === 2) throw failure;
+        if (attempt === 0) throw failure;
         await wait(400 * (2 ** attempt) + Math.round(Math.random() * 250));
         continue;
       }
-      if (![429, 502, 503, 504].includes(response.status) || attempt === 2) break;
+      if (![429, 502, 503, 504].includes(response.status) || attempt === 0) break;
       await wait(400 * (2 ** attempt) + Math.round(Math.random() * 250));
     }
     if (response.status === 401 || response.status === 403) {
@@ -306,7 +308,7 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
     }
     if (response.status === 400) throw new Error("收藏格式不符合要求，本机收藏仍已保存。");
     if (response.status === 413) throw new Error("品牌图片或壁纸过大，无法写入飞书云端。请重新上传图片，系统会自动压缩后再同步。");
-    if ([429, 502, 503, 504].includes(response.status)) throw new Error("飞书暂时繁忙，已自动重试；本机收藏仍已保存。");
+    if ([429, 502, 503, 504].includes(response.status)) throw new Error("飞书暂时繁忙，请稍后重试；本机收藏仍已保存。");
     if (response.status === 423) throw new Error("另一台设备正在保存，请稍后更新。");
     if (![200, 409].includes(response.status) || !Number.isSafeInteger(response.data?.revision)) {
       throw new Error("暂时无法连接飞书，当前收藏保留在本机。");
