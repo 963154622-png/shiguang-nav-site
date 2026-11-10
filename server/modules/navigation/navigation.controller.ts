@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { Body, Controller, Get, Put, Req, Res, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, Req, Res, UnauthorizedException } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { applyPatch, CollectionPatch, pack, validCollection } from './collection';
 import { NavigationService } from './navigation.service';
@@ -61,5 +61,13 @@ export class NavigationController {
     return result.conflict
       ? response.status(409).json(collection)
       : response.json(collection);
+  }
+
+  @Post('feishu-backup')
+  async backup(@Req() request: Request, @Body() input: { modules?: unknown; brandName?: unknown; brandIcon?: unknown; brandImage?: unknown; title?: unknown; subtitle?: unknown; wallpaper?: unknown; wallpaperPreset?: unknown; layout?: unknown }, @Res() response: Response) {
+    this.authorize(request, response);
+    const data = { modules: input.modules, brandName: input.brandName, brandIcon: input.brandIcon, brandImage: input.brandImage, title: input.title, subtitle: input.subtitle, wallpaper: input.wallpaper, wallpaperPreset: input.wallpaperPreset, layout: input.layout };
+    if (!validCollection(data)) return response.status(400).json({ error: 'invalid_collection' });
+    return response.json(await this.navigation.backupToFeishu(data));
   }
 }

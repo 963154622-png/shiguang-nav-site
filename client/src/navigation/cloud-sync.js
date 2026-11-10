@@ -11,6 +11,7 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
   const notice = byId("cloudNotice");
   const refreshButtons = [byId("refreshCloudBtn"), byId("settingsRefreshCloudBtn")];
   const syncButtons = [byId("syncCloudBtn"), byId("settingsSyncCloudBtn")];
+  const feishuBackup = byId("backupFeishuBtn");
   const enable = byId("enableCloudBtn");
   const useCloud = byId("useCloudVersionBtn");
   const useLocal = byId("useLocalVersionBtn");
@@ -449,6 +450,12 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
 
   for (const button of refreshButtons) button.addEventListener("click", () => refresh(true, true));
   for (const button of syncButtons) button.addEventListener("click", syncNow);
+  feishuBackup?.addEventListener("click", () => run(async () => {
+    const basePath = window.location.pathname.replace(/\/+$/, "");
+    const response = await axios.post(`${basePath}/api/collection/feishu-backup`, getCollection(), { timeout: 65_000, validateStatus: () => true });
+    if (response.status !== 200) throw new Error("飞书备份失败，请稍后重试。");
+    notify("已手动备份到飞书");
+  }));
   byId("cloudNoticeBtn").addEventListener("click", openSettings);
   enable.addEventListener("click", () => {
     if (remote?.revision !== 0) return;

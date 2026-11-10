@@ -27,6 +27,35 @@ export class NavigationService {
   private token: { value: string; validUntil: number } | null = null;
   private writes = Promise.resolve();
 
+  private supabaseSettings() {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SECRET_KEY;
+    const table = process.env.SUPABASE_TABLE || 'navigation_collections';
+    if (!url || !key) return null;
+    return { url: url.replace(/\/$/, ''), key, table };
+  }
+
+  private async supabaseRequest(method: 'GET' | 'POST' | 'PATCH', path: string, body?: unknown) {
+    const settings = this.supabaseSettings();
+    if (!settings) return null;
+    const response = await fetch(`${settings.url}/rest/v1/${path}`, {
+      method,
+      headers: {
+        apikey: settings.key,
+        authorization: `Bearer ${settings.key}`,
+        'content-type': 'application/json',
+        prefer: 'return=representation',
+      },
+      body: body == null ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!response.ok) {
+      this.logger.warn(`Supabase rejected: HTTP ${response.status}`);
+      throw new ServiceUnavailableException('Supabase 云端暂时无法读写收藏。');
+    }
+    return await response.json() as Array<RecordFields>;
+  }
+
   private githubSettings() {
     const token = process.env.GITHUB_TOKEN;
     const owner = process.env.GITHUB_OWNER || '963154622-png';
@@ -137,6 +166,13 @@ export class NavigationService {
   }
 
   async read() {
+    if (this.supabaseSettings()) {
+      const settings = this.supabaseSettings()!;
+      const rows = await this.supabaseRequest('GET', `${settings.table}?id=eq.1&select=*`);
+      const row = rows?.[0];
+      if (!row) return { modules: [], revision: 0, updatedAt: '' };
+      return { ...(row.data as NavCollectionData), revision: Number(row.revision) || 0, updatedAt: String(row.updated_at || '') };
+    }
     if (this.githubSettings()) {
       try {
         const file = await this.github('read', 'GET');
@@ -164,6 +200,21 @@ export class NavigationService {
       parts.push(plainText(chunk.data?.record?.fields[fields.snapshot]));
     }
     return this.readRecord(record, parts.join(''));
+  }
+
+  async backupToFeishu(collection: NavCollectionData) {
+    const { recordPath } = this.settings();
+    const token = await this.accessToken();
+    const current = await this.feishu('backup read', recordPath, 'GET', token);
+    const previous = this.readRecord(current.data?.record);
+    const snapshot = pack(collection);
+    if (!snapshot) throw new PayloadTooLargeException('收藏内容过大。');
+    const next = previous.revision + 1;
+    const updatedAt = new Date().toISOString();
+    await this.feishu('backup write', recordPath, 'PUT', token, {
+      fields: { [fields.revision]: next, [fields.updatedAt]: updatedAt, [fields.snapshot]: snapshot },
+    });
+    return { revision: next, updatedAt };
   }
 
   save(revision: number, collection: NavCollectionData, snapshot: string) {
@@ -196,6 +247,13 @@ export class NavigationService {
   private async updateWithPrevious(previous: Collection, collection: NavCollectionData, snapshot: string) {
     const next = previous.revision + 1;
     const updatedAt = new Date().toISOString();
+    if (this.supabaseSettings()) {
+      const settings = this.supabaseSettings()!;
+      await this.supabaseRequest('POST', settings.table, {
+        id: 1, revision: next, updated_at: updatedAt, data: collection,
+      });
+      return { conflict: false, collection: { ...collection, revision: next, updatedAt } };
+    }
     if (this.githubSettings()) {
       const file = await this.github('read', 'GET');
       const sha = file?.content?.sha;
