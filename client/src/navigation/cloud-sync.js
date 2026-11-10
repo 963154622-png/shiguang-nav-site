@@ -282,15 +282,13 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
       if (remote.revision && JSON.stringify(resultData(remote)) === sent) {
         remember(remote, sent);
         conflict = false;
-      } else if (remote.revision && attempt < 2) {
+      } else if (remote.revision && attempt < 5) {
         const before = base ? JSON.parse(base.snapshot) : defaultCollection;
         const local = JSON.parse(sent);
         const merged = mergeCollections(before, local, resultData(remote));
         if (!setCollection(merged)) throw new Error("本机空间不足，无法合并云端更新。请先导出备份。");
         return send(remote.revision, attempt + 1);
-      } else {
-        conflict = false;
-      }
+      } else conflict = false;
       return;
     }
     remember(remote, sent);
@@ -363,7 +361,12 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
         if (isEditing()) await send(remote.revision);
         else adopt(remote);
       } else {
-        conflict = true;
+        // A stale replica or a simultaneous write can leave the revision
+        // ordering temporarily ambiguous. Treat it like any other merge:
+        // the active editor is retried on top of the latest server revision,
+        // while an idle device adopts the cloud copy.
+        if (isEditing() || pending()) await send(remote.revision);
+        else adopt(remote);
       }
       if (showFeedback && !conflict) notify("收藏已更新");
     });
