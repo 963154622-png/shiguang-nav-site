@@ -259,10 +259,11 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
         if (isEditing()) return;
         adopt(remote);
       } else if (remote.revision > (base?.revision || 0)) {
-        // Feishu is the source of truth across devices. When another device
-        // has already advanced the cloud revision, adopt it automatically.
-        if (isEditing()) return;
-        adopt(remote);
+        // When this device is actively editing, its current changes win the
+        // race and are written on top of the newer cloud revision.  Idle
+        // devices keep the cloud copy as the source of truth and adopt it.
+        if (isEditing()) await send(remote.revision);
+        else adopt(remote);
       } else {
         conflict = true;
       }
@@ -339,15 +340,13 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
       window.addEventListener("focus", () => { if (!document.hidden) refresh(); });
       window.addEventListener("online", () => refresh());
       document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
-      setInterval(() => { if (!document.hidden) refresh(); }, 20_000);
-      // Keep the cloud copy current without creating revisions when nothing
-      // changed. Local edits still use the short debounce above; this is the
-      // periodic safety net for tabs that remain open for a long time.
+      // Keep the cloud copy current every five seconds. A pending edit is
+      // uploaded; otherwise the tab checks for edits from another device.
       setInterval(() => {
         if (document.hidden) return;
-        if (conflict) refresh();
+        if (conflict || !pending()) refresh();
         else if (pending()) syncNow();
-      }, 300_000);
+      }, 5_000);
     }
   };
 }
