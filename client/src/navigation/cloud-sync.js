@@ -439,12 +439,13 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
       window.addEventListener("focus", () => { if (!document.hidden) refresh(); });
       window.addEventListener("online", () => refresh());
       document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
-      // Keep the cloud copy current every five seconds. A pending edit is
-      // uploaded; otherwise the tab checks for edits from another device.
+      // Every five seconds we only perform change detection. `refresh()`
+      // compares the local snapshot with the remembered cloud revision and
+      // writes only when a real local edit is detected; unchanged tabs never
+      // issue a Feishu write.
       setInterval(() => {
         if (document.hidden) return;
-        if (conflict || !pending()) refresh();
-        else if (pending() && Date.now() - lastWriteAt >= 8_000) syncNow();
+        refresh();
       }, 5_000);
     }
   };
