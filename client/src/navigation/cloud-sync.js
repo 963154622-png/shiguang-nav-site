@@ -335,7 +335,10 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
     if (incoming !== snapshot() && !setCollection(incomingData)) {
       throw new Error("本机空间不足，无法读取云端收藏。请先导出备份。");
     }
-    remember(result, incoming);
+    // setCollection normalizes omitted optional fields against the app defaults.
+    // Remember the exact post-adoption snapshot so an idle device does not
+    // immediately look dirty and upload its stale pre-cloud shape.
+    remember(result, snapshot());
     localDirty = false;
     conflict = false;
   }
