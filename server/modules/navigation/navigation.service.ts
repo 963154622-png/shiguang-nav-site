@@ -1,5 +1,5 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
-import { Collection, NavCollectionData, unpack } from './collection';
+import { applyPatch, Collection, CollectionPatch, NavCollectionData, pack, unpack, validCollection } from './collection';
 
 type RecordFields = Record<string, unknown>;
 type BaseRecord = { fields: RecordFields };
@@ -111,10 +111,29 @@ export class NavigationService {
     return operation;
   }
 
+  savePatch(revision: number, patch: CollectionPatch) {
+    const operation = this.writes.then(async () => {
+      const previous = await this.read();
+      if (previous.revision !== revision) return { conflict: true, collection: previous };
+      const { revision: _revision, updatedAt: _updatedAt, ...baseData } = previous;
+      const collection = applyPatch(baseData, patch);
+      if (!validCollection(collection)) throw new ServiceUnavailableException('收藏格式不符合要求。');
+      const snapshot = pack(collection);
+      if (!snapshot) throw new ServiceUnavailableException('收藏内容过大。');
+      return this.updateWithPrevious(previous, collection, snapshot);
+    });
+    this.writes = operation.then(() => undefined, () => undefined);
+    return operation;
+  }
+
   private async update(revision: number, collection: NavCollectionData, snapshot: string) {
     const previous = await this.read();
     if (previous.revision !== revision) return { conflict: true, collection: previous };
-    const next = revision + 1;
+    return this.updateWithPrevious(previous, collection, snapshot);
+  }
+
+  private async updateWithPrevious(previous: Collection, collection: NavCollectionData, snapshot: string) {
+    const next = previous.revision + 1;
     const updatedAt = new Date().toISOString();
     const { recordPath } = this.settings();
     let actual: Collection;

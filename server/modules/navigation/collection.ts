@@ -28,6 +28,20 @@ export type NavCollectionData = {
   layout?: number;
 };
 
+export type CollectionPatch = {
+  modules?: NavModule[];
+  deletedModuleIds?: string[];
+  moduleOrder?: string[];
+  brandName?: string | null;
+  brandIcon?: string | null;
+  brandImage?: string | null;
+  title?: string | null;
+  subtitle?: string | null;
+  wallpaper?: string | null;
+  wallpaperPreset?: string | null;
+  layout?: number | null;
+};
+
 export type Collection = {
   modules: NavModule[];
   brandName?: string;
@@ -100,6 +114,30 @@ export function validCollection(value: unknown): value is NavCollectionData {
     image(data.wallpaper, 900_000) &&
     (data.wallpaperPreset == null || text(data.wallpaperPreset, 32)) &&
     (data.layout == null || (typeof data.layout === 'number' && Number.isInteger(data.layout) && [1, 2, 3, 4].includes(data.layout)));
+}
+
+export function applyPatch(base: NavCollectionData, patch: CollectionPatch): NavCollectionData {
+  const next: NavCollectionData = { ...base, modules: base.modules.map(module => ({ ...module, sites: [...module.sites] })) };
+  for (const field of ["brandName", "brandIcon", "brandImage", "title", "subtitle", "wallpaper", "wallpaperPreset", "layout"] as const) {
+    if (!Object.hasOwn(patch, field)) continue;
+    const value = patch[field];
+    if (value == null || value === "") delete next[field];
+    else next[field] = value as never;
+  }
+  const deleted = new Set(patch.deletedModuleIds || []);
+  const changed = new Map((patch.modules || []).map(module => [module.id, module]));
+  next.modules = next.modules.filter(module => !deleted.has(module.id));
+  for (const [id, module] of changed) {
+    const index = next.modules.findIndex(item => item.id === id);
+    if (index >= 0) next.modules[index] = module;
+    else next.modules.push(module);
+  }
+  if (patch.moduleOrder?.length) {
+    const map = new Map(next.modules.map(module => [module.id, module]));
+    next.modules = patch.moduleOrder.map(id => map.get(id)).filter((module): module is NavModule => Boolean(module));
+    for (const module of map.values()) if (!next.modules.some(item => item.id === module.id)) next.modules.push(module);
+  }
+  return next;
 }
 
 const rawLimit = 1_200_000;

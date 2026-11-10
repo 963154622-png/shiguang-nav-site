@@ -207,6 +207,34 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
     return JSON.stringify(current);
   }
 
+  function patchForSync(sent) {
+    if (!base) return null;
+    let before;
+    let current;
+    try {
+      before = JSON.parse(base.snapshot);
+      current = JSON.parse(sent);
+    } catch {
+      return null;
+    }
+    const patch = {};
+    for (const field of ["brandName", "brandIcon", "brandImage", "title", "subtitle", "wallpaper", "wallpaperPreset", "layout"]) {
+      if (!same(current[field], before[field])) patch[field] = current[field] ?? null;
+    }
+    const beforeMap = new Map((before.modules || []).map(module => [module.id, module]));
+    const currentMap = new Map((current.modules || []).map(module => [module.id, module]));
+    patch.modules = (current.modules || []).filter(module => !same(module, beforeMap.get(module.id)));
+    patch.deletedModuleIds = (before.modules || []).filter(module => !currentMap.has(module.id)).map(module => module.id);
+    if (!same((current.modules || []).map(module => module.id), (before.modules || []).map(module => module.id))) {
+      patch.moduleOrder = (current.modules || []).map(module => module.id);
+    }
+    const hasModules = patch.modules.length || patch.deletedModuleIds.length || patch.moduleOrder;
+    if (!hasModules) delete patch.modules;
+    if (!patch.deletedModuleIds?.length) delete patch.deletedModuleIds;
+    if (!patch.moduleOrder) delete patch.moduleOrder;
+    return Object.keys(patch).length ? patch : {};
+  }
+
   function formatTime(time) {
     return time ? new Date(time).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
   }
@@ -276,7 +304,8 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
 
   async function send(revision, attempt = 0) {
     const sent = await snapshotForSync();
-    const response = await request("PUT", { revision, ...JSON.parse(sent) });
+    const patch = patchForSync(sent);
+    const response = await request("PUT", patch ? { revision, patch } : { revision, ...JSON.parse(sent) });
     remote = response.result;
     if (response.conflict) {
       if (remote.revision && JSON.stringify(resultData(remote)) === sent) {
@@ -287,6 +316,7 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
         const local = JSON.parse(sent);
         const merged = mergeCollections(before, local, resultData(remote));
         if (!setCollection(merged)) throw new Error("本机空间不足，无法合并云端更新。请先导出备份。");
+        remember(remote, JSON.stringify(resultData(remote)));
         return send(remote.revision, attempt + 1);
       } else conflict = false;
       return;

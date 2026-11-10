@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { Body, Controller, Get, Put, Req, Res, UnauthorizedException } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { pack, validCollection } from './collection';
+import { applyPatch, CollectionPatch, pack, validCollection } from './collection';
 import { NavigationService } from './navigation.service';
 
 @Controller('api/collection')
@@ -25,9 +25,16 @@ export class NavigationController {
   }
 
   @Put()
-  async save(@Req() request: Request, @Body() input: { revision?: unknown; modules?: unknown; brandName?: unknown; brandIcon?: unknown; brandImage?: unknown; title?: unknown; subtitle?: unknown; wallpaper?: unknown; wallpaperPreset?: unknown; layout?: unknown }, @Res() response: Response) {
+  async save(@Req() request: Request, @Body() input: { revision?: unknown; patch?: unknown; modules?: unknown; brandName?: unknown; brandIcon?: unknown; brandImage?: unknown; title?: unknown; subtitle?: unknown; wallpaper?: unknown; wallpaperPreset?: unknown; layout?: unknown }, @Res() response: Response) {
     this.authorize(request, response);
     const revision = input?.revision;
+    if (input?.patch && typeof input.patch === 'object') {
+      if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 1 || revision >= Number.MAX_SAFE_INTEGER) {
+        return response.status(400).json({ error: 'invalid_collection' });
+      }
+      const result = await this.navigation.savePatch(revision, input.patch as CollectionPatch);
+      return result.conflict ? response.status(409).json(result.collection) : response.json(result.collection);
+    }
     const data = {
       modules: input?.modules,
       brandName: input?.brandName,
