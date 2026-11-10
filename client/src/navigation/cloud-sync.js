@@ -18,7 +18,9 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
   const accessForm = byId("accessForm");
   const accessInput = byId("accessCodeInput");
   const accessHint = byId("accessCodeHint");
-  let accessCode = "";
+  // GitHub-backed deployments are passwordless: the server holds the
+  // repository credential and browsers only use the shared API endpoint.
+  let accessCode = "github";
   try { accessCode = localStorage.getItem(accessKey)?.trim() || ""; } catch {}
   let accessPromise;
   let accessResolve;

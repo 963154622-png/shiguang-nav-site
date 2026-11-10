@@ -9,6 +9,10 @@ export class NavigationController {
   constructor(private readonly navigation: NavigationService) {}
 
   private authorize(request: Request, response: Response) {
+    if (process.env.GITHUB_TOKEN) {
+      response.set('cache-control', 'private, no-store');
+      return;
+    }
     const expected = process.env.NAV_ACCESS_KEY;
     const supplied = request.header('x-shiguang-access');
     if (!expected || !supplied) throw new UnauthorizedException();

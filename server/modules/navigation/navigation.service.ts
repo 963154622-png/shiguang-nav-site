@@ -27,6 +27,38 @@ export class NavigationService {
   private token: { value: string; validUntil: number } | null = null;
   private writes = Promise.resolve();
 
+  private githubSettings() {
+    const token = process.env.GITHUB_TOKEN;
+    const owner = process.env.GITHUB_OWNER || '963154622-png';
+    const repo = process.env.GITHUB_REPO || 'shiguang-nav-data';
+    const branch = process.env.GITHUB_BRANCH || 'main';
+    if (!token) return null;
+    return { token, owner, repo, branch };
+  }
+
+  private async github(stage: string, method: 'GET' | 'PUT', path = 'navigation.json', body?: unknown) {
+    const settings = this.githubSettings();
+    if (!settings) return null;
+    const url = `https://api.github.com/repos/${settings.owner}/${settings.repo}/contents/${path}`;
+    const response = await fetch(url, {
+      method,
+      headers: {
+        accept: 'application/vnd.github+json',
+        authorization: `Bearer ${settings.token}`,
+        'x-github-api-version': '2022-11-28',
+        'content-type': 'application/json',
+      },
+      body: body == null ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(12000),
+    });
+    const data = await response.json() as { content?: { content?: string; sha?: string }; sha?: string; message?: string };
+    if (!response.ok) {
+      this.logger.warn(`GitHub ${stage} rejected: HTTP ${response.status}`);
+      throw new ServiceUnavailableException('GitHub 云端暂时无法读写收藏。');
+    }
+    return data;
+  }
+
   private settings() {
     const appId = process.env.FEISHU_APP_ID;
     const secret = process.env.FEISHU_APP_SECRET;
@@ -104,6 +136,18 @@ export class NavigationService {
   }
 
   async read() {
+    if (this.githubSettings()) {
+      try {
+        const file = await this.github('read', 'GET');
+        const encoded = file?.content?.content?.replace(/\n/g, '') || '';
+        if (!encoded) return { modules: [], revision: 0, updatedAt: '' };
+        const data = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8')) as Collection;
+        return data;
+      } catch (error) {
+        if (error instanceof ServiceUnavailableException) throw error;
+        return { modules: [], revision: 0, updatedAt: '' };
+      }
+    }
     const { recordPath } = this.settings();
     const token = await this.accessToken();
     const result = await this.feishu('read', recordPath, 'GET', token);
@@ -151,6 +195,19 @@ export class NavigationService {
   private async updateWithPrevious(previous: Collection, collection: NavCollectionData, snapshot: string) {
     const next = previous.revision + 1;
     const updatedAt = new Date().toISOString();
+    if (this.githubSettings()) {
+      const file = await this.github('read', 'GET');
+      const sha = file?.content?.sha;
+      const payload = { ...collection, revision: next, updatedAt };
+      const content = Buffer.from(JSON.stringify(payload)).toString('base64');
+      await this.github('write', 'PUT', 'navigation.json', {
+        message: `更新拾光导航数据 v${next}`,
+        content,
+        branch: this.githubSettings()!.branch,
+        ...(sha ? { sha } : {}),
+      });
+      return { conflict: false, collection: payload };
+    }
     const { recordPath, tablePath } = this.settings();
     let actual: Collection;
     try {
