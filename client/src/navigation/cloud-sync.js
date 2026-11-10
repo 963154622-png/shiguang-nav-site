@@ -33,6 +33,7 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
   let error = "";
   let localTimer;
   let lastWriteAt = 0;
+  let localDirty = false;
   let changedDuringAction = false;
 
   const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
@@ -323,6 +324,7 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
     }
     remember(remote, sent);
     lastWriteAt = Date.now();
+    localDirty = snapshot() !== sent;
     conflict = false;
     if (snapshot() !== sent) changedDuringAction = true;
   }
@@ -334,6 +336,7 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
       throw new Error("本机空间不足，无法读取云端收藏。请先导出备份。");
     }
     remember(result, incoming);
+    localDirty = false;
     conflict = false;
   }
 
@@ -380,7 +383,11 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
       if (local === JSON.stringify(resultData(remote))) {
         adopt(remote);
       } else if (base?.revision === remote.revision && local !== base.snapshot) {
-        await send(base.revision);
+        // A stale localStorage snapshot from a previous session must never
+        // overwrite the cloud copy merely because it differs from base. Only
+        // a real edit made in this open tab is allowed to write.
+        if (localDirty) await send(base.revision);
+        else adopt(remote);
       } else if (!conflict && (base ? local === base.snapshot : local === defaults)) {
         if (isEditing()) return;
         adopt(remote);
@@ -395,7 +402,7 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
         // ordering temporarily ambiguous. Treat it like any other merge:
         // the active editor is retried on top of the latest server revision,
         // while an idle device adopts the cloud copy.
-        if (isEditing() || pending()) await send(remote.revision);
+        if (localDirty || isEditing()) await send(remote.revision);
         else adopt(remote);
       }
       if (showFeedback && !conflict) notify("收藏已更新");
@@ -403,6 +410,7 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
   }
 
   function localChanged() {
+    localDirty = true;
     render();
     if (!base || conflict || !pending()) return;
     if (busy) {
@@ -418,6 +426,7 @@ export function createCollectionSync({ getCollection, setCollection, defaultColl
   // action. Fetch the latest revision first so the write remains conflict-safe.
   function syncNow() {
     return run(async () => {
+      localDirty = true;
       ({ result: remote } = await request("GET"));
       const revision = Number.isSafeInteger(remote?.revision) ? remote.revision : 0;
       await send(revision);
