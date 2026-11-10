@@ -52,6 +52,7 @@ export class NavigationService {
       signal: AbortSignal.timeout(12000),
     });
     const data = await response.json() as { content?: { content?: string; sha?: string }; sha?: string; message?: string };
+    if (response.status === 404 && method === 'GET') return null;
     if (!response.ok) {
       this.logger.warn(`GitHub ${stage} rejected: HTTP ${response.status}`);
       throw new ServiceUnavailableException('GitHub 云端暂时无法读写收藏。');
